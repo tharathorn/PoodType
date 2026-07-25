@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thai-voice-bridge"
+version = "0.1.0"
+description = "Windows system-wide Thai voice dictation with local Faster Whisper"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Full Content" }]
+dependencies = [
+  "faster-whisper>=1.0.0",
+  "sounddevice>=0.4.6",
+  "numpy>=1.24",
+  "keyboard>=0.13.5",
+  "pyperclip>=1.8.2",
+  "pystray>=0.19.5",
+  "Pillow>=10.0.0",
+  "PyYAML>=6.0",
+  "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "pytest-mock>=3.12",
+]
+cuda = [
+  # Optional CUDA wheels are environment-specific; install ctranslate2 CUDA build separately.
+]
+
+[project.scripts]
+thai-voice-bridge = "thai_voice_bridge.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

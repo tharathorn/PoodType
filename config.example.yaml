@@ -1,0 +1,95 @@
+# Copy to %LOCALAPPDATA%\thai-voice-bridge\config.yaml
+# (or set THAI_VOICE_BRIDGE_CONFIG to an absolute path).
+# Do not commit user config.
+
+hotkey: f8
+language: th          # enforced — must remain th
+task: transcribe      # enforced — translate is rejected
+model: medium
+device: cpu           # cpu | cuda | auto (cuda optional, never required)
+compute_type: int8
+microphone: null      # device index (int) or name substring; null = default
+samplerate: 16000
+auto_send: false      # if true, press Enter after paste
+min_hold_seconds: 0.3
+min_confidence: 0.35  # average segment confidence; below = no paste
+beam_size: 5
+initial_prompt: >-
+  Codex, Cursor, Code Coach, Dev Orchestrator, Full Content, HyperFrames,
+  HeyGen, Python, PowerShell, GitHub, API, MCP, Windows, Thai, English.
+
+# Read-only model cache (do not delete/modify the shared cache).
+# Example: C:\Users\thaun\Documents\Playground\.hf-cache
+hf_cache_dir: null
+allow_model_download: false
+
+privacy:
+  persist_transcripts: false
+  persist_audio: false
+  log_full_text: false
+  log_level: INFO
+
+feedback:
+  enabled: true
+  # frequencies (Hz) / durations (ms)
+  start: [1100, 120]
+  stop: [750, 140]
+  success: [1400, 120]
+  error: [500, 180]
+  busy: [500, 120]
+
+dictionary:
+  # Global replacements applied first (regex → replacement)
+  replacements:
+    - pattern: '\b[Cc]odex\b'
+      replace: Codex
+    - pattern: 'โคดิก|โคเด็ก|โคเดกซ์|โครเด็ก|โค้ดเด็ก|โค้ดเดกซ์'
+      replace: Codex
+    - pattern: '\b[Cc]ursor\b'
+      replace: Cursor
+    - pattern: 'เคอร์เซอร์|เคอเซอร์'
+      replace: Cursor
+    - pattern: 'โค้ด\s*โค้ช|โคด\s*โค้ช|โค้ดโค้ช|Code\s*Coach'
+      replace: Code Coach
+    - pattern: 'Dev\s*Orchestrator|เดฟ\s*ออเคสเตรเตอร์|ออเคสเตรเตอร์'
+      replace: Dev Orchestrator
+    - pattern: 'Full\s*Content|ฟูล\s*คอนเทนต์|ฟูลคอนเทนต์'
+      replace: Full Content
+    - pattern: 'HyperFrames|ไฮเปอร์เฟรม|ไฮเปอร์\s*เฟรม'
+      replace: HyperFrames
+    - pattern: 'HeyGen|เฮย์เจน|เฮเจน'
+      replace: HeyGen
+    - pattern: '\b[Pp]ython\b|ไพธอน|ไพทอน'
+      replace: Python
+    - pattern: 'พาวเวอร์เชลล์|พาวเวอร์\s*เชลล์|Power\s*Shell'
+      replace: PowerShell
+    - pattern: 'GitHub|กิทฮับ|กิตฮับ'
+      replace: GitHub
+    - pattern: '\bAPI\b|เอพีไอ'
+      replace: API
+    - pattern: '\bMCP\b|เอ็มซีพี'
+      replace: MCP
+    - pattern: 'วินโดวส์|วินโดว์|วินโด'
+      replace: Windows
+    - pattern: 'เทส|เทสต์'
+      replace: test
+
+# Optional overlays when foreground process matches (name substring, case-insensitive).
+# Never hard-codes focus to a specific app; only chooses dictionary profile.
+profiles:
+  cursor:
+    match_process: ["Cursor.exe", "cursor.exe"]
+    extra_replacements:
+      - pattern: 'คอมโพส|คอมโพเซอร์'
+        replace: Composer
+  code_coach:
+    match_process: ["Code Coach", "code-coach", "CodeCoach"]
+    extra_replacements: []
+  codex:
+    match_process: ["Codex", "codex"]
+    extra_replacements:
+      - pattern: '\b[Cc]oding\b'
+        replace: Codex
+  browser:
+    match_process: ["chrome.exe", "msedge.exe", "firefox.exe", "brave.exe"]
+    extra_replacements: []
