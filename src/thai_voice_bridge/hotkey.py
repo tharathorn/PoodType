@@ -37,6 +37,8 @@ class HotkeyController:
     def disable(self) -> None:
         with self._lock:
             self._enabled = False
+            self._key_down = False
+            self._press_mono = 0.0
 
     @property
     def enabled(self) -> bool:
@@ -57,7 +59,7 @@ class HotkeyController:
 
     def _handle_release(self, _event) -> None:  # noqa: ANN001
         with self._lock:
-            if not self._key_down:
+            if not self._enabled or not self._key_down:
                 return
             self._key_down = False
             held = time.monotonic() - self._press_mono

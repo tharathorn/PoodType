@@ -1,5 +1,43 @@
 # HANDOFF — Thai Voice Bridge
 
+## Latest review — 2026-07-25
+
+Portfolio TPM ตรวจ repository, tests, Git และ security แล้ว:
+
+- `pytest -q`: **40 passed** (เดิม 29; เพิ่ม safety regression coverage)
+- `compileall -q src`: **OK**
+- Security review: ไม่มี medium/high/critical finding หลัง hardening
+- Git: branch `master`; commits เดิม `5167e08`, `e260684`, `d86d6fa`
+- Safety hardening ยังเป็น **local-only** — ยังไม่ push
+- ยังไม่ install/startup/deploy และยังไม่ register เข้า Dev Orchestrator
+
+Manual smoke บน Cursor ผ่านเมื่อ **2026-07-25 ~19:44 Asia/Bangkok**:
+
+- F8 push-to-talk → Thai transcription → paste สำเร็จ
+- `auto_send: false` — เจ้าของกด Enter เอง
+- Pause ระหว่างถือ F8 → ไม่ paste; Resume แล้วใช้งานต่อได้
+- สลับ foreground ระหว่าง transcribe → ไม่ paste ผิดหน้าต่าง
+- Clipboard เดิมถูก restore
+- Exit ระหว่าง transcribe → ไม่มี paste ตามหลัง
+
+ยังไม่ได้ยืนยันแยกบน Code Coach/Codex และยังไม่ได้ติดตั้ง Startup
+
+Hardening ที่เพิ่ม:
+
+1. Pause/Exit ยกเลิก recording และ invalidate transcription ที่กำลังรัน
+2. จับ foreground HWND ตอนปล่อย F8; ถ้าหน้าต่างเปลี่ยนจะไม่ paste
+3. จำกัด recording 60 วินาที; เกินแล้วหยุด/ทิ้งและไม่สร้าง WAV
+4. Clipboard read/restore fail-closed
+5. Model preload ล้มเหลวแล้วไม่เปิด global hotkey
+6. Disable hotkey ล้าง held-key state ป้องกัน stale release
+
+สิ่งที่เจ้าของยังต้องทำก่อนเปิดใช้ถาวร:
+
+- ทดสอบเสริมบน Code Coach/Codex เมื่อต้องใช้งานจริง
+- ทดสอบ limit 3 วินาทีตาม checklist หากต้องการยืนยัน hard limit ด้วยตนเอง
+- อนุมัติ commit/push/install/startup แยกทีละขั้น
+- การ register Dev Orchestrator ดู `docs/DEV_ORCHESTRATOR_REGISTRATION.md`
+
 ## สิ่งที่ส่งมอบ
 
 โปรเจกต์ใหม่ที่ `C:\Users\thaun\Documents\Playground\thai-voice-bridge`
@@ -70,6 +108,10 @@ python -m thai_voice_bridge discover-cache
 - `allow_model_download: false` + ไม่มี cache → แอปจะไม่โหลดโมเดล
 - ไม่รองรับ macOS/Linux เป็นเป้าหมายหลัก (มี fallback บางส่วนสำหรับเทส)
 - Per-app profile จับคู่จากชื่อ process/title เท่านั้น ไม่ได้อ่านเนื้อหาแอป
+- Foreground safety ตรวจระดับ top-level HWND; การย้าย focus ระหว่าง control
+  ภายในหน้าต่างเดียวกันตรวจไม่พบ
+- Clipboard รองรับข้อความผ่าน `pyperclip`; ถ้าอ่าน clipboard เดิมไม่ได้
+  ระบบจะไม่ paste เพื่อป้องกันข้อมูลเดิมสูญหาย
 
 ## ไฟล์สำคัญ
 

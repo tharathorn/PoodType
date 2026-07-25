@@ -10,6 +10,7 @@ device: cpu           # cpu | cuda | auto (cuda optional, never required)
 compute_type: int8
 microphone: null      # device index (int) or name substring; null = default
 samplerate: 16000
+max_recording_seconds: 60  # hard safety limit; over-limit audio is discarded
 auto_send: false      # if true, press Enter after paste
 min_hold_seconds: 0.3
 min_confidence: 0.35  # average segment confidence; below = no paste

@@ -11,7 +11,7 @@ from thai_voice_bridge.audio import Recorder
 from thai_voice_bridge.config import AppConfig
 from thai_voice_bridge.dictionary import is_bad_transcript, normalize_transcript
 from thai_voice_bridge.feedback import Feedback
-from thai_voice_bridge.foreground import describe_target, get_foreground_info
+from thai_voice_bridge.foreground import ForegroundInfo, describe_target, get_foreground_info
 from thai_voice_bridge.hotkey import HotkeyController
 from thai_voice_bridge.paste import PasteError, paste_text
 from thai_voice_bridge.privacy import log_transcript, setup_logging, summarize_event
@@ -35,9 +35,11 @@ class VoiceBridgeApp:
         self.recorder = Recorder(
             samplerate=config.samplerate,
             microphone=config.microphone,
+            max_recording_seconds=config.max_recording_seconds,
         )
         self.state = AppState.IDLE
         self._status_lock = threading.Lock()
+        self._work_generation = 0
         self._hotkey: HotkeyController | None = None
         self.on_state_change = None  # optional callable[[AppState], None]
 
@@ -82,11 +84,17 @@ class VoiceBridgeApp:
             self._hotkey.disable()
         if self.recorder.recording:
             self.recorder.cancel()
+        with self._status_lock:
+            self._work_generation += 1
         self._set_state(AppState.STOPPED)
 
     def pause_listening(self) -> None:
         if self._hotkey:
             self._hotkey.disable()
+        if self.recorder.recording:
+            self.recorder.cancel()
+        with self._status_lock:
+            self._work_generation += 1
         self._set_state(AppState.STOPPED)
 
     def resume_listening(self) -> None:
@@ -123,9 +131,24 @@ class VoiceBridgeApp:
             self.logger.info("recording_cancelled_too_short held=%.2f", held_seconds)
             self._set_state(AppState.IDLE)
             return
+        expected_foreground = get_foreground_info()
         self.feedback.stop()
-        self._set_state(AppState.BUSY)
-        threading.Thread(target=self._transcribe_and_paste, daemon=True).start()
+        with self._status_lock:
+            if self.state != AppState.RECORDING:
+                return
+            self.state = AppState.BUSY
+            generation = self._work_generation
+            callback = self.on_state_change
+        if callback:
+            try:
+                callback(AppState.BUSY)
+            except Exception:  # noqa: BLE001
+                self.logger.exception("state change callback failed")
+        threading.Thread(
+            target=self._transcribe_and_paste,
+            args=(expected_foreground, generation),
+            daemon=True,
+        ).start()
 
     def _cleanup_wav(self, path: Path | None) -> None:
         if path is None:
@@ -137,8 +160,15 @@ class VoiceBridgeApp:
         except OSError as exc:
             self.logger.warning("temp_wav_cleanup_failed: %s", exc)
 
-    def _transcribe_and_paste(self) -> None:
+    def _transcribe_and_paste(
+        self,
+        expected_foreground: ForegroundInfo | None = None,
+        work_generation: int | None = None,
+    ) -> None:
         wav_path: Path | None = None
+        if work_generation is None:
+            with self._status_lock:
+                work_generation = self._work_generation
         try:
             wav_path = self.recorder.stop_to_wav(
                 persist=self.config.privacy.persist_audio
@@ -149,6 +179,14 @@ class VoiceBridgeApp:
                 return
 
             result = self.engine.transcribe_file(wav_path)
+            with self._status_lock:
+                if (
+                    work_generation != self._work_generation
+                    or self.state == AppState.STOPPED
+                ):
+                    self.logger.info("work_cancelled_before_paste")
+                    return
+
             foreground = get_foreground_info()
             text = normalize_transcript(
                 result.text, self.config, foreground=foreground
@@ -182,7 +220,23 @@ class VoiceBridgeApp:
                 )
             )
 
-            paste_text(text, auto_send=self.config.auto_send)
+            if (
+                expected_foreground is None
+                or foreground is None
+                or foreground.hwnd != expected_foreground.hwnd
+            ):
+                self.logger.info("foreground_changed_paste_aborted")
+                self.feedback.error()
+                return
+
+            with self._status_lock:
+                if (
+                    work_generation != self._work_generation
+                    or self.state == AppState.STOPPED
+                ):
+                    self.logger.info("work_cancelled_before_paste")
+                    return
+                paste_text(text, auto_send=self.config.auto_send)
             self.feedback.success()
         except PasteError as exc:
             self.logger.error("paste_refused: %s", exc)
@@ -193,6 +247,9 @@ class VoiceBridgeApp:
         finally:
             self._cleanup_wav(wav_path)
             with self._status_lock:
-                should_idle = self.state != AppState.STOPPED
+                should_idle = (
+                    work_generation == self._work_generation
+                    and self.state != AppState.STOPPED
+                )
             if should_idle:
                 self._set_state(AppState.IDLE)

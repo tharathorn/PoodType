@@ -73,6 +73,15 @@ class TrayApplication:
         self._icon.icon = _make_icon(STATE_COLORS.get(state, STATE_COLORS[AppState.IDLE]))
         self._icon.title = self._title()
 
+    def _boot(self) -> None:
+        try:
+            self.app.preload_model()
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Model preload failed; hotkey remains disabled: %s", exc)
+            self.app._set_state(AppState.ERROR)
+            return
+        self.app.start_hotkey()
+
     def run(self) -> None:
         import pystray
 
@@ -92,14 +101,7 @@ class TrayApplication:
             menu,
         )
 
-        def _boot() -> None:
-            try:
-                self.app.preload_model()
-            except Exception as exc:  # noqa: BLE001
-                logger.error("Model preload failed: %s", exc)
-            self.app.start_hotkey()
-
-        threading.Thread(target=_boot, daemon=True).start()
+        threading.Thread(target=self._boot, daemon=True).start()
         self._icon.run()
 
 

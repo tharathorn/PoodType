@@ -9,6 +9,8 @@
 - Push-to-talk ค่าเริ่มต้น **F8** (กดค้าง / ปล่อย)
 - วางข้อความด้วย Ctrl+V — **ไม่กด Enter** โดยค่าเริ่มต้น (`auto_send: false`)
 - Restore clipboard เดิมหลังวาง
+- ยกเลิก paste ถ้าหน้าต่าง foreground เปลี่ยนระหว่างถอดเสียง
+- จำกัดการอัดค่าเริ่มต้น 60 วินาที; เกินแล้วทิ้งเสียงและไม่ paste
 - Tray icon: Pause/Resume, Settings, Exit + สถานะสี
 - Single-instance lock
 - Dictionary / per-app profile สำหรับศัพท์เทคนิค
@@ -81,6 +83,7 @@ python -m thai_voice_bridge run
 | `auto_send` | `false` | |
 | `min_confidence` | `0.35` | ต่ำกว่านี้ไม่ paste |
 | `microphone` | `null` | index หรือชื่อย่อย |
+| `max_recording_seconds` | `60` | hard limit; เกินแล้วไม่สร้าง WAV/paste |
 | `hf_cache_dir` | auto-detect | path ไปยัง HF cache |
 | `allow_model_download` | `false` | |
 
@@ -107,6 +110,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install_startup.ps1
 
 - ไม่ได้อ่านข้อความหรือ credential จาก foreground app
 - ไม่ paste ถ้า transcript ว่างหรือ confidence ต่ำ
+- Pause/Exit ยกเลิก recording และ invalidate transcription ที่ยังไม่ paste
+- จับ HWND ตอนปล่อย F8 และ paste เฉพาะเมื่อยังเป็น foreground เดิม
 - Log ถูก sanitize และไม่เก็บข้อความเต็มโดยค่าเริ่มต้น
 - ไม่แก้ registry / ไม่สร้าง scheduled task เอง
 - ไม่ focus ไปที่ exe ใดเป็นการเฉพาะ

@@ -9,6 +9,7 @@ import pytest
 
 from thai_voice_bridge.app import AppState, VoiceBridgeApp
 from thai_voice_bridge.config import config_from_dict
+from thai_voice_bridge.foreground import ForegroundInfo
 from thai_voice_bridge.whisper_engine import TranscriptResult
 
 
@@ -74,11 +75,12 @@ def test_good_transcript_pastes_without_autosend(tmp_path: Path):
             used_vad=True,
         )
     )
+    foreground = ForegroundInfo(123, "Cursor.exe", 42, "Cursor")
     with patch("thai_voice_bridge.app.paste_text") as paste, patch(
-        "thai_voice_bridge.app.get_foreground_info", return_value=None
+        "thai_voice_bridge.app.get_foreground_info", return_value=foreground
     ):
         app._set_state(AppState.BUSY)
-        app._transcribe_and_paste()
+        app._transcribe_and_paste(foreground, app._work_generation)
         paste.assert_called_once()
         args, kwargs = paste.call_args
         assert args[0]

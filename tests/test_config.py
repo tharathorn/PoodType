@@ -46,6 +46,7 @@ def test_config_from_dict_defaults(tmp_path: Path):
     assert cfg.device == "cpu"
     assert cfg.compute_type == "int8"
     assert cfg.auto_send is False
+    assert cfg.max_recording_seconds == 60.0
     assert cfg.language == "th"
     assert cfg.task == "transcribe"
 
@@ -76,4 +77,11 @@ def test_min_confidence_bounds():
     with pytest.raises(ConfigError):
         config_from_dict(
             {"language": "th", "task": "transcribe", "min_confidence": 1.5}
+        )
+
+
+def test_max_recording_seconds_must_be_positive():
+    with pytest.raises(ConfigError):
+        config_from_dict(
+            {"language": "th", "task": "transcribe", "max_recording_seconds": 0}
         )

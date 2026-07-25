@@ -13,6 +13,10 @@
 - [ ] กด F8 ซ้ำระหว่างกำลัง transcribe → ได้เสียง busy ไม่ซ้อน record
 - [ ] พูดเงียบ/สั้นเกิน → ไม่ paste + เสียง error
 - [ ] Tray แสดงสถานะ (idle/recording/busy) และ Pause/Resume ใช้ได้
+- [ ] กด F8 ค้างแล้วกด Pause → เสียงหยุด, ปล่อย F8 แล้วไม่ paste, Resume แล้วอัดรอบใหม่ได้
+- [ ] ปล่อย F8 แล้วสลับไปอีกหน้าต่างระหว่าง transcribe → ไม่ paste ในหน้าต่างใหม่
+- [ ] กด Exit ระหว่าง transcribe → หลัง Exit แล้วไม่มีข้อความ paste ตามมา
+- [ ] ตั้ง `max_recording_seconds: 3` ชั่วคราว, พูดเกิน 3 วินาที → ไม่ paste; คืนค่า `60`
 
 ## Cursor
 
@@ -44,3 +48,4 @@
 
 - [ ] ตรวจ log ไม่มีข้อความเต็ม (ถ้า `log_full_text: false`)
 - [ ] โฟลเดอร์ temp ไม่ค้างไฟล์ `tvb_*.wav` หลังใช้งาน
+- [ ] ทดลองล็อก/ทำให้ clipboard อ่านไม่ได้ → แอปไม่เขียนทับ clipboard

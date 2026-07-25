@@ -17,23 +17,21 @@ class PasteError(RuntimeError):
 @contextmanager
 def clipboard_swap(text: str) -> Iterator[str | None]:
     """Temporarily set clipboard to text, then restore previous contents."""
-    previous: str | None
     try:
         previous = pyperclip.paste()
-    except Exception:
-        previous = None
+    except Exception as exc:
+        raise PasteError("Cannot read clipboard safely; paste aborted") from exc
     try:
-        pyperclip.copy(text)
+        try:
+            pyperclip.copy(text)
+        except Exception as exc:
+            raise PasteError("Cannot write transcript to clipboard") from exc
         yield previous
     finally:
         try:
-            if previous is None:
-                pyperclip.copy("")
-            else:
-                pyperclip.copy(previous)
-        except Exception:
-            # Best-effort restore; do not raise from finally during success path tests
-            pass
+            pyperclip.copy(previous)
+        except Exception as exc:
+            raise PasteError("Cannot restore clipboard after paste") from exc
 
 
 def paste_text(

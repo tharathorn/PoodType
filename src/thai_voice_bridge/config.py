@@ -59,6 +59,7 @@ class AppConfig:
     compute_type: str = "int8"
     microphone: int | str | None = None
     samplerate: int = 16000
+    max_recording_seconds: float = 60.0
     auto_send: bool = False
     min_hold_seconds: float = 0.3
     min_confidence: float = 0.35
@@ -195,6 +196,7 @@ def config_from_dict(data: dict[str, Any], source_path: Path | None = None) -> A
         compute_type=str(data.get("compute_type", "int8")),
         microphone=mic,
         samplerate=int(data.get("samplerate", 16000)),
+        max_recording_seconds=float(data.get("max_recording_seconds", 60.0)),
         auto_send=bool(data.get("auto_send", False)),
         min_hold_seconds=float(data.get("min_hold_seconds", 0.3)),
         min_confidence=float(data.get("min_confidence", 0.35)),
@@ -222,6 +224,8 @@ def config_from_dict(data: dict[str, Any], source_path: Path | None = None) -> A
     )
     if cfg.min_confidence < 0 or cfg.min_confidence > 1:
         raise ConfigError("min_confidence must be between 0 and 1")
+    if cfg.max_recording_seconds <= 0:
+        raise ConfigError("max_recording_seconds must be greater than 0")
     return cfg
 
 

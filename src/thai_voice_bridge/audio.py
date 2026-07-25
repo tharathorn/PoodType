@@ -70,24 +70,42 @@ class Recorder:
         *,
         samplerate: int = 16000,
         microphone: int | str | None = None,
+        max_recording_seconds: float = 60.0,
     ) -> None:
         self.samplerate = samplerate
         self.microphone = resolve_input_device(microphone)
+        self.max_recording_seconds = max_recording_seconds
+        self._max_samples = max(1, int(samplerate * max_recording_seconds))
         self._stream: sd.InputStream | None = None
         self._chunks: list[np.ndarray] = []
+        self._sample_count = 0
+        self._limit_exceeded = False
         self._lock = threading.Lock()
         self.recording = False
 
     def _callback(self, indata, frames, time_info, status) -> None:  # noqa: ANN001
         del frames, time_info, status
+        chunk = indata.copy().reshape(-1)
+        exceeded = False
         with self._lock:
-            self._chunks.append(indata.copy().reshape(-1))
+            remaining = self._max_samples - self._sample_count
+            if remaining > 0:
+                kept = chunk[:remaining]
+                self._chunks.append(kept)
+                self._sample_count += len(kept)
+            if len(chunk) > remaining:
+                self._limit_exceeded = True
+                exceeded = True
+        if exceeded:
+            raise sd.CallbackStop
 
     def start(self) -> None:
         if self.recording:
             raise AudioError("Already recording")
         with self._lock:
             self._chunks = []
+            self._sample_count = 0
+            self._limit_exceeded = False
         self._stream = sd.InputStream(
             samplerate=self.samplerate,
             channels=1,
@@ -102,6 +120,8 @@ class Recorder:
         self._close_stream()
         with self._lock:
             self._chunks = []
+            self._sample_count = 0
+            self._limit_exceeded = False
         self.recording = False
 
     def stop_to_wav(self, *, persist: bool = False) -> Path | None:
@@ -110,7 +130,15 @@ class Recorder:
         self.recording = False
         with self._lock:
             chunks = list(self._chunks)
+            limit_exceeded = self._limit_exceeded
             self._chunks = []
+            self._sample_count = 0
+            self._limit_exceeded = False
+        if limit_exceeded:
+            raise AudioError(
+                f"Recording exceeded maximum duration of "
+                f"{self.max_recording_seconds:g} seconds"
+            )
         audio = normalize_audio(chunks)
         if audio.size == 0:
             return None
