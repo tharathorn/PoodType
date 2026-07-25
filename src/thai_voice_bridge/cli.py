@@ -1,4 +1,4 @@
-"""CLI entrypoints for thai-voice-bridge."""
+"""CLI entrypoints for PoodType."""
 
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ from thai_voice_bridge.whisper_engine import apply_hf_cache_env, discover_cached
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="thai-voice-bridge",
-        description="Windows system-wide Thai voice dictation (local Faster Whisper).",
+        prog="poodtype",
+        description="PoodType — speak Thai, type anywhere with local Faster Whisper.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(

@@ -1,6 +1,11 @@
-# Thai Voice Bridge
+# PoodType
+
+> **Speak Thai. Type Anywhere.**  
+> พูดภาษาไทย พิมพ์ได้ทุกแอป
 
 แอป dictation ภาษาไทยแบบ system-wide สำหรับ Windows ใช้ **Faster Whisper รันในเครื่องเท่านั้น** แล้ววางข้อความลงหน้าต่างที่กำลังโฟกัสอยู่ (Cursor, Code Coach, Codex, เบราว์เซอร์ ฯลฯ) โดยไม่พึ่ง voice recognition ในตัวแอป
+
+ไม่มี API key, ไม่มีค่าบริการรายเดือน และเสียงไม่ออกจากเครื่อง
 
 ## คุณสมบัติหลัก
 

@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "thai-voice-bridge"
+name = "poodtype"
 version = "0.1.0"
-description = "Windows system-wide Thai voice dictation with local Faster Whisper"
+description = "Speak Thai, type anywhere on Windows with local Faster Whisper"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -32,6 +32,7 @@ cuda = [
 ]
 
 [project.scripts]
+poodtype = "thai_voice_bridge.cli:main"
 thai-voice-bridge = "thai_voice_bridge.cli:main"
 
 [tool.setuptools.packages.find]

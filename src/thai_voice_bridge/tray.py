@@ -47,7 +47,7 @@ class TrayApplication:
         self._state = AppState.IDLE
 
     def _title(self) -> str:
-        return f"Thai Voice Bridge [{self._state.value}] — {self.config.hotkey.upper()}"
+        return f"PoodType [{self._state.value}] — {self.config.hotkey.upper()}"
 
     def _open_settings(self, _icon=None, _item=None) -> None:  # noqa: ANN001
         path = ensure_user_config(default_user_config_path())
@@ -98,7 +98,7 @@ class TrayApplication:
             pystray.MenuItem("Exit", self._exit),
         )
         self._icon = pystray.Icon(
-            "thai-voice-bridge",
+            "poodtype",
             _make_icon(STATE_COLORS[AppState.IDLE]),
             self._title(),
             menu,
