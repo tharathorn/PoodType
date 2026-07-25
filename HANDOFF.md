@@ -1,20 +1,22 @@
-# HANDOFF — Thai Voice Bridge
+# HANDOFF — PoodType
 
-## Latest review — 2026-07-25
+## Public release — 2026-07-25
 
-Portfolio TPM ตรวจ repository, tests, Git และ security แล้ว:
-
-- `pytest -q`: **41 passed** (เดิม 29; เพิ่ม safety + branded-icon coverage)
-- `compileall -q src`: **OK**
-- Security review: ไม่มี medium/high/critical finding หลัง hardening
-- Git: branch `master`; commits เดิม `5167e08`, `e260684`, `d86d6fa`
-- Safety hardening ยังเป็น **local-only** — ยังไม่ push
-- Registered in Dev Orchestrator:
-  `proj_9fa2a153931f4e62b5aada9f94478014` (`thai-voice-bridge`, enabled,
-  tests `pytest_all` + `compile_check`; push/deploy/integration/cleanup=`never`)
-- Desktop shortcut created: `C:\Users\thaun\Desktop\Thai Voice Bridge.lnk`
-  with packaged branded ICO; tray uses the matching PNG plus state indicator
-- ยังไม่ติดตั้ง Windows Startup, ไม่ deploy และยังไม่ push
+- Public repository: <https://github.com/tharathorn/PoodType>
+- Release: <https://github.com/tharathorn/PoodType/releases/tag/v0.1.0>
+- Git branch `master`; release commit `7cc7cbc`
+- `pytest -q`: **48 passed**
+- `compileall -q src scripts`: **OK**
+- Portable ZIP: 1,517,660,653 bytes; extraction/config smoke passed
+- Installer: 1,451,250,773 bytes; install/run/uninstall smoke passed
+- Packaged Faster Whisper `medium` preload passed
+- Both packages are offline after download: no API key, account, subscription,
+  analytics, or telemetry
+- SHA-256 checksums are published as `SHA256SUMS.txt`
+- Installer is not code-signed; Windows may show an Unknown publisher warning
+- Dev Orchestrator registration remains under the internal project name
+  `thai-voice-bridge`; push/deploy/integration/cleanup policies remain `never`
+- Windows Startup was not enabled automatically
 
 Manual smoke บน Cursor ผ่านเมื่อ **2026-07-25 ~19:44 Asia/Bangkok**:
 
@@ -25,7 +27,7 @@ Manual smoke บน Cursor ผ่านเมื่อ **2026-07-25 ~19:44 Asia/
 - Clipboard เดิมถูก restore
 - Exit ระหว่าง transcribe → ไม่มี paste ตามหลัง
 
-ยังไม่ได้ยืนยันแยกบน Code Coach/Codex และยังไม่ได้ติดตั้ง Startup
+เจ้าของยืนยัน manual checklist ผ่านแล้ว; ไม่ได้เปิด Windows Startup อัตโนมัติ
 
 Hardening ที่เพิ่ม:
 
@@ -36,31 +38,27 @@ Hardening ที่เพิ่ม:
 5. Model preload ล้มเหลวแล้วไม่เปิด global hotkey
 6. Disable hotkey ล้าง held-key state ป้องกัน stale release
 
-สิ่งที่เจ้าของยังต้องทำก่อนเปิดใช้ถาวร:
+งานต่อที่เป็น optional:
 
-- ทดสอบเสริมบน Code Coach/Codex เมื่อต้องใช้งานจริง
-- ทดสอบ limit 3 วินาทีตาม checklist หากต้องการยืนยัน hard limit ด้วยตนเอง
-- อนุมัติ commit/push/install/startup แยกทีละขั้น
-- การ register Dev Orchestrator ดู `docs/DEV_ORCHESTRATOR_REGISTRATION.md`
+- จัดหา code-signing certificate เพื่อลด SmartScreen warning
+- เพิ่ม screenshot/demo ใน GitHub README
+- เปิด Windows Startup เฉพาะเมื่อเจ้าของต้องการ
 
 ## สิ่งที่ส่งมอบ
 
-โปรเจกต์ใหม่ที่ `C:\Users\thaun\Documents\Playground\thai-voice-bridge`
-
 - Python package: `src/thai_voice_bridge/`
 - CLI: `list-devices`, `discover-cache`, `init-config`, `run`, `tray`
-- Tray app + config example
-- Unit tests, README (ไทย), packaging + startup scripts (ยังไม่รันติดตั้ง)
-- Git local commits เท่านั้น — **ยังไม่ push**
+- Tray app + config example + branded icon
+- Portable ZIP + current-user Windows installer พร้อม model `medium`
+- Public source, privacy/security docs, third-party license notice และ checksums
 
-## ต้นแบบที่อ้างอิง (read-only)
+## ต้นแบบที่อ้างอิงตอนเริ่มโครงการ (read-only)
 
-- `C:\Users\thaun\Documents\Playground\codex_voice_hotkey.py`
-- `C:\Users\thaun\Documents\Playground\whisper_transcribe.py`
-- Cache: `C:\Users\thaun\Documents\Playground\.hf-cache` (medium + small)
-- Env ศึกษา: `C:\Users\thaun\Documents\Playground\.whisper-env`
+- local voice-hotkey prototype
+- local Whisper transcription prototype
+- existing Hugging Face model cache (`medium` + `small`)
 
-**ไม่ได้แก้/ย้าย/ลบ/commit ไฟล์ใน Playground working tree**
+ต้นแบบไม่ได้ถูกแก้ ย้าย ลบ หรือ commit เข้า PoodType
 
 ## สถาปัตยกรรมสั้นๆ
 
@@ -74,7 +72,7 @@ Tray / single-instance ครอบรอบแอปหลัก
 
 ## ความต่างจากต้นแบบ
 
-| ต้นแบบ | Thai Voice Bridge |
+| ต้นแบบ | PoodType |
 |--------|-------------------|
 | Focus `claude.exe` | Foreground window เท่านั้น |
 | ไม่ restore clipboard | Restore หลัง paste |
@@ -83,17 +81,13 @@ Tray / single-instance ครอบรอบแอปหลัก
 | dictionary แคบ | profiles + คำศัพท์ที่กำหนด |
 | language optional | บังคับ `th` + `transcribe` |
 
-## ขั้นตอนเจ้าของหลังรับมอบ
+## ขั้นตอนผู้ใช้
 
-1. สร้าง venv และ `pip install -e .`
-2. `python -m thai_voice_bridge init-config`
-3. ตั้ง `hf_cache_dir` ชี้ไป `.hf-cache` เดิม
-4. `discover-cache` → ต้อง READY
-5. `list-devices` → เลือกไมค์ใน config
-6. รัน `pythonw -m thai_voice_bridge tray`
-7. ทำ [docs/MANUAL_SMOKE_CHECKLIST.md](docs/MANUAL_SMOKE_CHECKLIST.md)
-8. **อย่า**รัน `install_startup.ps1` จนกว่าจะอนุมัติเอง
-9. **อย่า** push / deploy โดยไม่ได้รับอนุญาต
+1. ดาวน์โหลด Setup หรือ Portable จาก GitHub Release
+2. ตรวจ SHA-256 กับ `SHA256SUMS.txt`
+3. ติดตั้งหรือแตก ZIP แล้วเปิด `PoodType.exe`
+4. โฟกัสช่องพิมพ์ กด F8 ค้าง พูด แล้วปล่อย
+5. กด Enter เองเมื่อต้องการส่ง (`auto_send: false`)
 
 ## คำสั่งตรวจสอบที่ทำแล้ว / ควรทำซ้ำ
 
