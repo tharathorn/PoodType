@@ -16,6 +16,8 @@ $Py = if (Test-Path ".\.venv\Scripts\python.exe") { ".\.venv\Scripts\python.exe"
   --clean `
   --windowed `
   --name ThaiVoiceBridge `
+  --icon src/thai_voice_bridge/assets/thai_voice_bridge.ico `
+  --add-data "src/thai_voice_bridge/assets;thai_voice_bridge/assets" `
   --paths src `
   --hidden-import thai_voice_bridge `
   --hidden-import faster_whisper `

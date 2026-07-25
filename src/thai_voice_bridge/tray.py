@@ -12,18 +12,21 @@ from thai_voice_bridge.app import AppState, VoiceBridgeApp
 from thai_voice_bridge.config import AppConfig, default_user_config_path, ensure_user_config
 
 logger = logging.getLogger("thai_voice_bridge.tray")
+ICON_ASSET_PATH = Path(__file__).resolve().parent / "assets" / "thai_voice_bridge.png"
 
 
 def _make_icon(color: tuple[int, int, int, int]) -> Image.Image:
     size = 64
-    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    try:
+        image = Image.open(ICON_ASSET_PATH).convert("RGBA")
+        image = image.resize((size, size), Image.Resampling.LANCZOS)
+    except OSError:
+        image = Image.new("RGBA", (size, size), (15, 48, 120, 255))
     draw = ImageDraw.Draw(image)
-    draw.ellipse((4, 4, size - 4, size - 4), fill=color)
-    # Simple mic glyph
-    draw.rectangle((28, 18, 36, 38), fill=(255, 255, 255, 230))
-    draw.ellipse((24, 14, 40, 30), fill=(255, 255, 255, 230))
-    draw.arc((22, 30, 42, 50), start=0, end=180, fill=(255, 255, 255, 230), width=3)
-    draw.line((32, 50, 32, 56), fill=(255, 255, 255, 230), width=3)
+    # Small high-contrast status indicator: green idle, red recording,
+    # amber busy, gray stopped/error.
+    draw.ellipse((45, 45, 62, 62), fill=(255, 255, 255, 255))
+    draw.ellipse((48, 48, 59, 59), fill=color)
     return image
 
 

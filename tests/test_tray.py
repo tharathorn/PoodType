@@ -2,7 +2,14 @@ from unittest.mock import MagicMock
 
 from thai_voice_bridge.app import AppState
 from thai_voice_bridge.config import config_from_dict
-from thai_voice_bridge.tray import TrayApplication
+from thai_voice_bridge.tray import ICON_ASSET_PATH, TrayApplication, _make_icon
+
+
+def test_branded_tray_icon_asset_is_packaged():
+    assert ICON_ASSET_PATH.is_file()
+    icon = _make_icon((40, 167, 69, 255))
+    assert icon.size == (64, 64)
+    assert icon.getpixel((32, 32))[:3] != (40, 167, 69)
 
 
 def test_preload_failure_does_not_enable_hotkey():

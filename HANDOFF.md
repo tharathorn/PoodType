@@ -4,12 +4,17 @@
 
 Portfolio TPM ตรวจ repository, tests, Git และ security แล้ว:
 
-- `pytest -q`: **40 passed** (เดิม 29; เพิ่ม safety regression coverage)
+- `pytest -q`: **41 passed** (เดิม 29; เพิ่ม safety + branded-icon coverage)
 - `compileall -q src`: **OK**
 - Security review: ไม่มี medium/high/critical finding หลัง hardening
 - Git: branch `master`; commits เดิม `5167e08`, `e260684`, `d86d6fa`
 - Safety hardening ยังเป็น **local-only** — ยังไม่ push
-- ยังไม่ install/startup/deploy และยังไม่ register เข้า Dev Orchestrator
+- Registered in Dev Orchestrator:
+  `proj_9fa2a153931f4e62b5aada9f94478014` (`thai-voice-bridge`, enabled,
+  tests `pytest_all` + `compile_check`; push/deploy/integration/cleanup=`never`)
+- Desktop shortcut created: `C:\Users\thaun\Desktop\Thai Voice Bridge.lnk`
+  with packaged branded ICO; tray uses the matching PNG plus state indicator
+- ยังไม่ติดตั้ง Windows Startup, ไม่ deploy และยังไม่ push
 
 Manual smoke บน Cursor ผ่านเมื่อ **2026-07-25 ~19:44 Asia/Bangkok**:
 
