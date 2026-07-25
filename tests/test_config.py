@@ -12,6 +12,7 @@ from thai_voice_bridge.config import (
     ENFORCED_TASK,
     ConfigError,
     config_from_dict,
+    default_user_config_path,
     load_config,
     validate_language_and_task,
 )
@@ -85,3 +86,28 @@ def test_max_recording_seconds_must_be_positive():
         config_from_dict(
             {"language": "th", "task": "transcribe", "max_recording_seconds": 0}
         )
+
+
+def test_hf_home_environment_is_used_without_private_machine_path(monkeypatch, tmp_path):
+    cache = tmp_path / "huggingface"
+    cache.mkdir()
+    monkeypatch.setenv("HF_HOME", str(cache))
+
+    cfg = config_from_dict({})
+
+    assert cfg.hf_cache_dir == cache.resolve()
+
+
+def test_portable_marker_keeps_config_beside_frozen_executable(
+    monkeypatch,
+    tmp_path,
+):
+    executable = tmp_path / "PoodType.exe"
+    executable.touch()
+    (tmp_path / "portable.flag").touch()
+    monkeypatch.setattr("thai_voice_bridge.config.sys.frozen", True, raising=False)
+    monkeypatch.setattr("thai_voice_bridge.config.sys.executable", str(executable))
+    monkeypatch.delenv("POODTYPE_CONFIG", raising=False)
+    monkeypatch.delenv("THAI_VOICE_BRIDGE_CONFIG", raising=False)
+
+    assert default_user_config_path() == tmp_path / "config.yaml"

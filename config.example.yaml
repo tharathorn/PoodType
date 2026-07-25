@@ -1,5 +1,5 @@
-# Copy to %LOCALAPPDATA%\thai-voice-bridge\config.yaml
-# (or set THAI_VOICE_BRIDGE_CONFIG to an absolute path).
+# Copy to %LOCALAPPDATA%\PoodType\config.yaml
+# (or set POODTYPE_CONFIG to an absolute path; the legacy variable is supported).
 # Do not commit user config.
 
 hotkey: f8
@@ -20,7 +20,7 @@ initial_prompt: >-
   HeyGen, Python, PowerShell, GitHub, API, MCP, Windows, Thai, English.
 
 # Read-only model cache (do not delete/modify the shared cache).
-# Example: C:\Users\thaun\Documents\Playground\.hf-cache
+# Example: C:\path\to\huggingface-cache
 hf_cache_dir: null
 allow_model_download: false
 

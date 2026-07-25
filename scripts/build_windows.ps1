@@ -10,14 +10,15 @@ Set-Location $Root
 
 $Py = if (Test-Path ".\.venv\Scripts\python.exe") { ".\.venv\Scripts\python.exe" } else { "python" }
 
-& $Py -m pip install -q pyinstaller
+& $Py -m pip install -q "pyinstaller>=6,<7"
 & $Py -m PyInstaller `
   --noconfirm `
   --clean `
   --windowed `
-  --name ThaiVoiceBridge `
+  --name PoodType `
   --icon src/thai_voice_bridge/assets/thai_voice_bridge.ico `
   --add-data "src/thai_voice_bridge/assets;thai_voice_bridge/assets" `
+  --add-data "config.example.yaml;." `
   --paths src `
   --hidden-import thai_voice_bridge `
   --hidden-import faster_whisper `
@@ -26,5 +27,5 @@ $Py = if (Test-Path ".\.venv\Scripts\python.exe") { ".\.venv\Scripts\python.exe"
   --collect-all ctranslate2 `
   src/thai_voice_bridge/__main__.py
 
-Write-Host "Output: $Root\dist\ThaiVoiceBridge\ThaiVoiceBridge.exe"
-Write-Host "Run tray via: ThaiVoiceBridge.exe tray   (or configure entry to default tray)"
+Write-Host "Output: $Root\dist\PoodType\PoodType.exe"
+Write-Host "Run tray via: PoodType.exe (tray is the default command)"

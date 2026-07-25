@@ -40,7 +40,7 @@ class SingleInstanceLock:
             raise SingleInstanceError("Failed to create instance mutex")
         if last_error == ERROR_ALREADY_EXISTS:
             kernel32.CloseHandle(handle)
-            raise SingleInstanceError("thai-voice-bridge is already running")
+            raise SingleInstanceError("PoodType is already running")
         self._handle = handle
 
     def _acquire_file(self) -> None:
@@ -58,7 +58,7 @@ class SingleInstanceLock:
                 fcntl.flock(fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
             fp.close()
-            raise SingleInstanceError("thai-voice-bridge is already running") from exc
+            raise SingleInstanceError("PoodType is already running") from exc
         self._fp = fp
         self._lock_path = path
 

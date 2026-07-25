@@ -1,4 +1,4 @@
-# OPTIONAL: install a Current-User Startup shortcut for Thai Voice Bridge.
+# OPTIONAL: install a Current-User Startup shortcut for PoodType.
 # DO NOT run automatically — owner must approve and execute manually.
 #
 # Usage:
@@ -16,7 +16,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Startup = [Environment]::GetFolderPath("Startup")
-$ShortcutPath = Join-Path $Startup "ThaiVoiceBridge.lnk"
+$ShortcutPath = Join-Path $Startup "PoodType.lnk"
 
 if ($Remove) {
     if (Test-Path $ShortcutPath) {
@@ -54,7 +54,7 @@ $Sc.TargetPath = $Target
 $Sc.Arguments = $Arguments
 $Sc.WorkingDirectory = $Root
 $Sc.WindowStyle = 7
-$Sc.Description = "Thai Voice Bridge (local Faster Whisper dictation)"
+$Sc.Description = "PoodType (local Faster Whisper dictation)"
 $Sc.Save()
 
 Write-Host "Installed Startup shortcut: $ShortcutPath"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,6 +33,29 @@ class WhisperError(RuntimeError):
 
 class ModelCacheError(WhisperError):
     pass
+
+
+BUNDLED_MODEL_FILES = (
+    "config.json",
+    "model.bin",
+    "tokenizer.json",
+    "vocabulary.txt",
+)
+
+
+def discover_bundled_model(
+    model_name: str,
+    app_dir: Path | None = None,
+) -> Path | None:
+    """Return a complete model bundled beside a frozen executable."""
+    if app_dir is None:
+        if not getattr(sys, "frozen", False):
+            return None
+        app_dir = Path(sys.executable).resolve().parent
+    candidate = app_dir / "models" / f"faster-whisper-{model_name}"
+    if all((candidate / name).is_file() for name in BUNDLED_MODEL_FILES):
+        return candidate
+    return None
 
 
 def apply_hf_cache_env(config: AppConfig) -> Path | None:
@@ -81,10 +105,13 @@ class WhisperEngine:
             return self._model
 
         apply_hf_cache_env(self.config)
-        cached = discover_cached_model(self.config.model, self.config.hf_cache_dir)
-        if cached is None and not self.config.allow_model_download:
+        bundled = discover_bundled_model(self.config.model)
+        cached = None
+        if bundled is None:
+            cached = discover_cached_model(self.config.model, self.config.hf_cache_dir)
+        if bundled is None and cached is None and not self.config.allow_model_download:
             raise ModelCacheError(
-                f"Model '{self.config.model}' not found in cache "
+                f"Model '{self.config.model}' not found beside the application or in cache "
                 f"({self.config.hf_cache_dir}). Set allow_model_download: true "
                 "to permit a one-time download, or point hf_cache_dir at an "
                 "existing Faster Whisper cache."
@@ -93,7 +120,10 @@ class WhisperEngine:
         from faster_whisper import WhisperModel
 
         model_ref: str | Path = self.config.model
-        if cached is not None:
+        if bundled is not None:
+            model_ref = str(bundled)
+            logger.info("Using bundled model at %s", bundled)
+        elif cached is not None:
             model_ref = str(cached)
             logger.info("Using cached model snapshot at %s", cached)
 

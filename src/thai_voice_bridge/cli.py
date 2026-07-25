@@ -11,10 +11,13 @@ from thai_voice_bridge.audio import list_input_devices
 from thai_voice_bridge.config import (
     ensure_user_config,
     load_config,
-    default_user_config_path,
 )
 from thai_voice_bridge.single_instance import SingleInstanceError, SingleInstanceLock
-from thai_voice_bridge.whisper_engine import apply_hf_cache_env, discover_cached_model
+from thai_voice_bridge.whisper_engine import (
+    apply_hf_cache_env,
+    discover_bundled_model,
+    discover_cached_model,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -27,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--config",
         type=Path,
         default=None,
-        help="Path to config.yaml (default: %%LOCALAPPDATA%%\\thai-voice-bridge\\config.yaml)",
+        help="Path to config.yaml (default: %%LOCALAPPDATA%%\\PoodType\\config.yaml)",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -60,6 +63,11 @@ def cmd_discover_cache(config_path: Path | None) -> int:
     print(f"hf_cache_dir: {cache}")
     print(f"allow_model_download: {cfg.allow_model_download}")
     print(f"model: {cfg.model}")
+    bundled = discover_bundled_model(cfg.model)
+    if bundled:
+        print(f"bundled_model: {bundled}")
+        print("status: READY (offline bundle)")
+        return 0
     snap = discover_cached_model(cfg.model, cfg.hf_cache_dir)
     if snap:
         print(f"cached_snapshot: {snap}")
@@ -74,7 +82,7 @@ def cmd_discover_cache(config_path: Path | None) -> int:
 
 
 def cmd_init_config(config_path: Path | None) -> int:
-    path = ensure_user_config(config_path or default_user_config_path())
+    path = ensure_user_config(config_path)
     print(f"User config: {path}")
     return 0
 
@@ -111,7 +119,7 @@ def cmd_tray(config_path: Path | None, no_lock: bool) -> int:
     lock = _acquire_lock(no_lock)
     try:
         cfg = load_config(config_path)
-        ensure_user_config(default_user_config_path())
+        ensure_user_config(config_path)
         from thai_voice_bridge.tray import run_tray
 
         return run_tray(cfg)

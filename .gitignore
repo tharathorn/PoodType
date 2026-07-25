@@ -26,6 +26,7 @@ config.local.yaml
 *.spec
 /dist/
 /build/
+/release/
 
 # Logs / temp / audio (never commit)
 *.wav

@@ -24,14 +24,24 @@
 ## ความต้องการระบบ
 
 - Windows 10/11
-- Python 3.10+
 - ไมโครโฟน
-- (แนะนำ) cache โมเดล Faster Whisper ที่มีอยู่แล้ว เช่น `C:\Users\thaun\Documents\Playground\.hf-cache`
+- RAM อย่างน้อย 8 GB (แนะนำ 16 GB)
 
-## ติดตั้ง
+## ดาวน์โหลดสำหรับผู้ใช้ทั่วไป
+
+ดาวน์โหลดจาก [GitHub Releases](https://github.com/tharathorn/PoodType/releases):
+
+- **Setup.exe** — ติดตั้งแบบปกติ พร้อม Start Menu shortcut
+- **Portable.zip** — แตกไฟล์แล้วเปิด `PoodType.exe` ได้ทันที
+
+ทั้งสองแบบรวม Faster Whisper `medium` และทำงาน offline ไม่มี API key
+หรือค่าบริการรายเดือน รุ่น Portable เก็บ `config.yaml` ไว้ในโฟลเดอร์เดียวกับแอป
+
+## ติดตั้งจาก source (นักพัฒนา)
 
 ```powershell
-cd C:\Users\thaun\Documents\Playground\thai-voice-bridge
+git clone https://github.com/tharathorn/PoodType.git
+cd PoodType
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -39,12 +49,12 @@ pip install -e .
 python -m thai_voice_bridge init-config
 ```
 
-แก้ config ที่ `%LOCALAPPDATA%\thai-voice-bridge\config.yaml`
+แก้ config ที่ `%LOCALAPPDATA%\PoodType\config.yaml`
 
-ตั้งค่า cache เดิม (อ่านอย่างเดียว — ห้ามลบ/แก้ cache):
+ตั้งค่า Faster Whisper cache ที่มีอยู่แล้ว:
 
 ```yaml
-hf_cache_dir: C:\Users\thaun\Documents\Playground\.hf-cache
+hf_cache_dir: C:\path\to\huggingface-cache
 allow_model_download: false
 model: medium
 device: cpu
@@ -92,7 +102,7 @@ python -m thai_voice_bridge run
 | `hf_cache_dir` | auto-detect | path ไปยัง HF cache |
 | `allow_model_download` | `false` | |
 
-User config อยู่นอก Git (`%LOCALAPPDATA%\thai-voice-bridge\`)
+User config อยู่นอก Git (`%LOCALAPPDATA%\PoodType\`) ยกเว้นรุ่น Portable
 
 ## ทดสอบ
 
@@ -101,15 +111,15 @@ python -m pytest -q
 python -m compileall -q src
 ```
 
-## Packaging / Startup (ทำเองเมื่อพร้อม)
+## สร้าง Release
 
 ```powershell
-# สร้าง exe (ไม่ติดตั้ง)
-powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
-
-# ติดตั้ง Startup shortcut ของ user ปัจจุบันเท่านั้น — ต้องอนุมัติก่อนรัน
-powershell -ExecutionPolicy Bypass -File .\scripts\install_startup.ps1
+# ต้องมี Inno Setup 6 และ Faster Whisper medium ใน cache
+powershell -ExecutionPolicy Bypass -File .\scripts\build_release.ps1
 ```
+
+สคริปต์สร้างทั้ง Portable ZIP และ Windows installer ใน `release\`
+โดย copy model เป็นไฟล์จริงและสร้าง SHA-256 manifest ไม่ commit model ลง Git
 
 ## ความเป็นส่วนตัว / ความปลอดภัย
 

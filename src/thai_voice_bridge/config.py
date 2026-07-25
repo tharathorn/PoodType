@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,11 +13,6 @@ import yaml
 
 ENFORCED_LANGUAGE = "th"
 ENFORCED_TASK = "transcribe"
-
-DEFAULT_HF_CACHE_CANDIDATES = [
-    Path(r"C:\Users\thaun\Documents\Playground\.hf-cache"),
-]
-
 
 @dataclass
 class Replacement:
@@ -83,9 +79,20 @@ class ConfigError(ValueError):
 
 
 def default_user_config_path() -> Path:
-    override = os.environ.get("THAI_VOICE_BRIDGE_CONFIG")
+    override = os.environ.get("POODTYPE_CONFIG") or os.environ.get(
+        "THAI_VOICE_BRIDGE_CONFIG"
+    )
     if override:
         return Path(override).expanduser().resolve()
+    if getattr(sys, "frozen", False):
+        app_dir = Path(sys.executable).resolve().parent
+        if (app_dir / "portable.flag").is_file():
+            return app_dir / "config.yaml"
+    local = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    return Path(local) / "PoodType" / "config.yaml"
+
+
+def legacy_user_config_path() -> Path:
     local = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
     return Path(local) / "thai-voice-bridge" / "config.yaml"
 
@@ -138,7 +145,17 @@ def _resolve_hf_cache(raw: Any) -> Path | None:
     if raw:
         path = Path(str(raw)).expanduser().resolve()
         return path
-    for candidate in DEFAULT_HF_CACHE_CANDIDATES:
+    candidates: list[Path] = []
+    if os.environ.get("HF_HOME"):
+        candidates.append(Path(os.environ["HF_HOME"]).expanduser())
+    if os.environ.get("XDG_CACHE_HOME"):
+        candidates.append(
+            Path(os.environ["XDG_CACHE_HOME"]).expanduser() / "huggingface"
+        )
+    if not getattr(sys, "frozen", False):
+        candidates.append(Path(__file__).resolve().parents[3] / ".hf-cache")
+    candidates.append(Path.home() / ".cache" / "huggingface")
+    for candidate in candidates:
         if candidate.exists():
             return candidate.resolve()
     return None
@@ -231,10 +248,14 @@ def config_from_dict(data: dict[str, Any], source_path: Path | None = None) -> A
 
 def load_config(path: Path | None = None) -> AppConfig:
     """Load user config, falling back to bundled example defaults."""
+    using_default = path is None
     if path is None:
         path = default_user_config_path()
     if path.exists():
         return config_from_dict(load_raw_dict(path), source_path=path)
+    legacy = legacy_user_config_path()
+    if using_default and legacy.exists():
+        return config_from_dict(load_raw_dict(legacy), source_path=legacy)
 
     example = example_config_path()
     if example.exists():
@@ -256,10 +277,15 @@ def load_config(path: Path | None = None) -> AppConfig:
 
 def ensure_user_config(path: Path | None = None) -> Path:
     """Copy example config to user path if missing. Never overwrites."""
+    using_default = path is None
     dest = path or default_user_config_path()
     if dest.exists():
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
+    legacy = legacy_user_config_path()
+    if using_default and legacy.exists() and legacy != dest:
+        dest.write_text(legacy.read_text(encoding="utf-8"), encoding="utf-8")
+        return dest
     example = example_config_path()
     if example.exists():
         dest.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
