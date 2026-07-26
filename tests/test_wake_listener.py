@@ -62,11 +62,13 @@ def test_start_phrase_enters_recording_and_end_phrase_emits_utterance(tmp_path: 
             "พรุ่งนี้ประชุม 10 โมง ส่งได้ พุดไทป์",
         ]
     )
+    phases: list[str] = []
     listener = WakeWordListener(
         cfg,
         feedback=feedback,
         on_utterance=lambda path: utterances.append(path),
         transcribe_window=asr,
+        on_phase=phases.append,
         open_mic=False,
     )
     listener.enable()
@@ -74,10 +76,13 @@ def test_start_phrase_enters_recording_and_end_phrase_emits_utterance(tmp_path: 
     _pump_utterance(listener)
     assert listener.phase == "recording"
     feedback.start.assert_called_once()
+    assert phases == ["recording"]
 
     _pump_utterance(listener)
     assert listener.phase == "listening"
     feedback.stop.assert_called_once()
+    # Finish path leaves tray red until app flips to BUSY (no listening notify).
+    assert phases == ["recording"]
     assert len(utterances) == 1
     assert utterances[0].exists()
     utterances[0].unlink(missing_ok=True)

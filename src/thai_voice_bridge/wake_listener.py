@@ -35,12 +35,14 @@ class WakeWordListener:
         feedback: Feedback,
         on_utterance: Callable[[Path], None],
         transcribe_window: Callable[[np.ndarray], str],
+        on_phase: Callable[[Phase], None] | None = None,
         open_mic: bool = True,
     ) -> None:
         self.config = config
         self.feedback = feedback
         self.on_utterance = on_utterance
         self.transcribe_window = transcribe_window
+        self.on_phase = on_phase
         self.open_mic = open_mic
         self.phase: Phase = "listening"
         self._enabled = False
@@ -104,6 +106,15 @@ class WakeWordListener:
         self._record_samples = 0
         self._vad.reset()
 
+    def _notify_phase(self, phase: Phase) -> None:
+        callback = self.on_phase
+        if callback is None:
+            return
+        try:
+            callback(phase)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("on_phase_failed: %s", exc)
+
     def feed_audio(self, frame: np.ndarray) -> None:
         samples = np.asarray(frame, dtype=np.float32).reshape(-1)
         if samples.size == 0:
@@ -136,6 +147,7 @@ class WakeWordListener:
         except Exception as exc:  # noqa: BLE001
             logger.error("wake_window_transcribe_failed: %s", exc)
             return
+        logger.info("wake_listen_window text=%r", text)
         if contains_phrase(
             text,
             self.config.wake_word.start_phrase,
@@ -147,6 +159,7 @@ class WakeWordListener:
                 self.phase = "recording"
                 self._record_chunks = []
                 self._record_samples = 0
+            self._notify_phase("recording")
             self.feedback.start()
             logger.info("wake_start_phrase_matched")
 
@@ -184,6 +197,7 @@ class WakeWordListener:
         except Exception as exc:  # noqa: BLE001
             logger.error("end_window_transcribe_failed: %s", exc)
             return
+        logger.info("wake_end_window text=%r", text)
         if contains_phrase(
             text,
             self.config.wake_word.end_phrase,
@@ -195,6 +209,7 @@ class WakeWordListener:
         with self._lock:
             self.phase = "listening"
             self._reset_buffers()
+        self._notify_phase("listening")
         self.feedback.error()
         logger.info("wake_recording_limit_exceeded")
 
@@ -203,9 +218,11 @@ class WakeWordListener:
             chunks = list(self._record_chunks)
             self.phase = "listening"
             self._reset_buffers()
+        # Stay visually "recording" until on_utterance flips app to BUSY.
         self.feedback.stop()
         audio = normalize_audio(chunks)
         if audio.size == 0:
+            self._notify_phase("listening")
             self.feedback.error()
             return
         path = unique_temp_wav(prefix="poodtype_wake_")
@@ -214,6 +231,7 @@ class WakeWordListener:
             self.on_utterance(path)
         except Exception as exc:  # noqa: BLE001
             logger.exception("on_utterance_failed: %s", exc)
+            self._notify_phase("listening")
             try:
                 path.unlink(missing_ok=True)
             except OSError:

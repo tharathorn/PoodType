@@ -167,6 +167,7 @@ class VoiceBridgeApp:
             feedback=self.feedback,
             on_utterance=self._handle_wake_utterance,
             transcribe_window=self._transcribe_window,
+            on_phase=self._on_wake_phase,
             open_mic=True,
         )
         self._wake_listener.enable()
@@ -186,6 +187,19 @@ class VoiceBridgeApp:
         self._wake_listener = None
         if listener is not None:
             listener.disable()
+
+    def _on_wake_phase(self, phase: str) -> None:
+        if phase == "recording":
+            with self._status_lock:
+                if self.state in (AppState.STOPPED, AppState.BUSY):
+                    return
+            self._set_state(AppState.RECORDING)
+            return
+        if phase == "listening":
+            with self._status_lock:
+                if self.state != AppState.RECORDING:
+                    return
+            self._set_state(AppState.IDLE)
 
     def _transcribe_window(self, audio: np.ndarray) -> str:
         path = unique_temp_wav(prefix="poodtype_wake_win_")

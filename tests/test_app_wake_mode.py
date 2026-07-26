@@ -72,3 +72,12 @@ def test_wake_utterance_strips_phrases_before_paste(tmp_path: Path):
     paste.assert_called_once()
     assert paste.call_args.args[0] == "พรุ่งนี้ประชุม 10 โมง"
     assert paste.call_args.kwargs["auto_send"] is False
+
+
+def test_wake_phase_recording_turns_tray_state_red():
+    app = _wake_app()
+    assert app.state == AppState.IDLE
+    app._on_wake_phase("recording")
+    assert app.state == AppState.RECORDING
+    app._on_wake_phase("listening")
+    assert app.state == AppState.IDLE
