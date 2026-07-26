@@ -196,28 +196,28 @@ class WakeWordListener:
             logger.error("wake_window_transcribe_failed: %s", exc)
             return
         logger.info("wake_listen_window text=%r", text)
-        # Drop obvious Whisper loop hallucinations before phrase match.
-        tokens = [t for t in text.split() if t]
-        if len(tokens) >= 6 and len(set(tokens)) <= 2:
-            logger.info("wake_listen_hallucination_ignored")
-            return
-        if not contains_phrase(
+        if contains_phrase(
             text,
             self.config.wake_word.start_phrase,
             tolerance=self.config.wake_word.match_tolerance,
         ):
+            with self._lock:
+                if not self._enabled or self.phase != "listening":
+                    return
+                self.phase = "recording"
+                self._record_chunks = []
+                self._record_samples = 0
+                self._speech_chunks = []
+                self._vad.reset()
+            self._notify_phase("recording")
+            self.feedback.start()
+            logger.info("wake_start_phrase_matched")
             return
-        with self._lock:
-            if not self._enabled or self.phase != "listening":
-                return
-            self.phase = "recording"
-            self._record_chunks = []
-            self._record_samples = 0
-            self._speech_chunks = []
-            self._vad.reset()
-        self._notify_phase("recording")
-        self.feedback.start()
-        logger.info("wake_start_phrase_matched")
+        # Ignore looping hallucinations only when they are NOT the start phrase.
+        tokens = [t for t in text.split() if t]
+        if len(tokens) >= 6 and len(set(tokens)) <= 2:
+            logger.info("wake_listen_hallucination_ignored")
+            return
 
     def _handle_end_job(self, audio: np.ndarray) -> None:
         with self._lock:

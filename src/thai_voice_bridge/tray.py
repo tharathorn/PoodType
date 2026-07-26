@@ -20,8 +20,19 @@ logger = logging.getLogger("thai_voice_bridge.tray")
 ICON_ASSET_PATH = Path(__file__).resolve().parent / "assets" / "thai_voice_bridge.png"
 
 
-def _make_icon(color: tuple[int, int, int, int]) -> Image.Image:
+def _make_icon(
+    color: tuple[int, int, int, int],
+    *,
+    solid: bool = False,
+) -> Image.Image:
     size = 64
+    if solid:
+        # Full-bleed status — tiny corner dots are unreadable in the Windows tray.
+        image = Image.new("RGBA", (size, size), color)
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((8, 8, 56, 56), fill=(255, 255, 255, 255))
+        draw.ellipse((14, 14, 50, 50), fill=color)
+        return image
     try:
         image = Image.open(ICON_ASSET_PATH).convert("RGBA")
         image = image.resize((size, size), Image.Resampling.LANCZOS)
@@ -61,6 +72,14 @@ class TrayApplication:
         if self._state == AppState.IDLE and self.config.mode == "wake_word":
             return WAKE_LISTEN_COLOR
         return STATE_COLORS.get(self._state, STATE_COLORS[AppState.IDLE])
+
+    def _icon_image(self) -> Image.Image:
+        color = self._icon_color()
+        solid = self.config.mode == "wake_word" or self._state in {
+            AppState.RECORDING,
+            AppState.BUSY,
+        }
+        return _make_icon(color, solid=solid)
 
     def _title(self) -> str:
         return f"PoodType [{self._state.value}] — {self._mode_label()}"
@@ -108,7 +127,7 @@ class TrayApplication:
         self._persist_mode(mode)
         if self._icon is not None:
             self._icon.title = self._title()
-            self._icon.icon = _make_icon(self._icon_color())
+            self._icon.icon = self._icon_image()
             if mode == "wake_word":
                 try:
                     self._icon.notify(
@@ -135,7 +154,7 @@ class TrayApplication:
         self._state = state
         if self._icon is None:
             return
-        self._icon.icon = _make_icon(self._icon_color())
+        self._icon.icon = self._icon_image()
         self._icon.title = self._title()
 
     def _boot(self) -> None:
@@ -146,6 +165,10 @@ class TrayApplication:
             self.app._set_state(AppState.ERROR)
             return
         self.app.start_input()
+        # Refresh tray after input mode starts (wake = solid blue).
+        if self._icon is not None:
+            self._icon.icon = self._icon_image()
+            self._icon.title = self._title()
 
     def run(self) -> None:
         import pystray
@@ -174,7 +197,7 @@ class TrayApplication:
         )
         self._icon = pystray.Icon(
             "poodtype",
-            _make_icon(self._icon_color()),
+            self._icon_image(),
             self._title(),
             menu,
         )

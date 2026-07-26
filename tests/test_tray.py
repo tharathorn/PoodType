@@ -12,6 +12,16 @@ def test_branded_tray_icon_asset_is_packaged():
     assert icon.getpixel((32, 32))[:3] != (40, 167, 69)
 
 
+def test_wake_listen_icon_is_solid_blue():
+    tray = TrayApplication(
+        MagicMock(),
+        config_from_dict({"language": "th", "task": "transcribe", "mode": "wake_word"}),
+    )
+    tray._state = AppState.IDLE
+    icon = tray._icon_image()
+    assert icon.getpixel((32, 32))[:3] == (30, 144, 255)
+
+
 def test_preload_failure_does_not_enable_input():
     app = MagicMock()
     app.preload_model.side_effect = RuntimeError("model unavailable")

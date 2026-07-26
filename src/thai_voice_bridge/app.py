@@ -219,10 +219,9 @@ class VoiceBridgeApp:
             self.config,
             model=wake_model,
             beam_size=1,
-            initial_prompt=(
-                f"{self.config.wake_word.start_phrase} "
-                f"{self.config.wake_word.end_phrase}"
-            ),
+            # Do NOT seed wake phrases as initial_prompt — Whisper then loops
+            # them on ambient noise and we never see a clean match.
+            initial_prompt="",
         )
         self._wake_engine = WhisperEngine(wake_cfg)
         self.logger.info("wake_fast_model=%s beam_size=1", wake_model)
