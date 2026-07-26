@@ -3,6 +3,7 @@
 # Do not commit user config.
 
 hotkey: f8
+mode: hotkey          # hotkey | wake_word
 language: th          # enforced — must remain th
 task: transcribe      # enforced — translate is rejected
 model: medium
@@ -10,7 +11,7 @@ device: cpu           # cpu | cuda | auto (cuda optional, never required)
 compute_type: int8
 microphone: null      # device index (int) or name substring; null = default
 samplerate: 16000
-max_recording_seconds: 60  # hard safety limit; over-limit audio is discarded
+max_recording_seconds: 300  # hard safety limit; over-limit audio is discarded
 auto_send: false      # if true, press Enter after paste
 min_hold_seconds: 0.3
 min_confidence: 0.35  # average segment confidence; below = no paste
@@ -23,6 +24,12 @@ initial_prompt: >-
 # Example: C:\path\to\huggingface-cache
 hf_cache_dir: null
 allow_model_download: false
+
+wake_word:
+  start_phrase: "เฮ้ พุดไทป์"
+  end_phrase: "ส่งได้ พุดไทป์"
+  vad_silence_seconds: 1.0
+  match_tolerance: 0.8
 
 privacy:
   persist_transcripts: false

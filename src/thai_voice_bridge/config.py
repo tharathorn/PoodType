@@ -46,8 +46,17 @@ class FeedbackConfig:
 
 
 @dataclass
+class WakeWordConfig:
+    start_phrase: str = "เฮ้ พุดไทป์"
+    end_phrase: str = "ส่งได้ พุดไทป์"
+    vad_silence_seconds: float = 1.0
+    match_tolerance: float = 0.8
+
+
+@dataclass
 class AppConfig:
     hotkey: str = "f8"
+    mode: str = "hotkey"
     language: str = ENFORCED_LANGUAGE
     task: str = ENFORCED_TASK
     model: str = "medium"
@@ -55,7 +64,7 @@ class AppConfig:
     compute_type: str = "int8"
     microphone: int | str | None = None
     samplerate: int = 16000
-    max_recording_seconds: float = 60.0
+    max_recording_seconds: float = 300.0
     auto_send: bool = False
     min_hold_seconds: float = 0.3
     min_confidence: float = 0.35
@@ -69,6 +78,7 @@ class AppConfig:
     allow_model_download: bool = False
     privacy: PrivacyConfig = field(default_factory=PrivacyConfig)
     feedback: FeedbackConfig = field(default_factory=FeedbackConfig)
+    wake_word: WakeWordConfig = field(default_factory=WakeWordConfig)
     replacements: list[Replacement] = field(default_factory=list)
     profiles: dict[str, AppProfile] = field(default_factory=dict)
     source_path: Path | None = None
@@ -199,13 +209,36 @@ def config_from_dict(data: dict[str, Any], source_path: Path | None = None) -> A
     privacy_raw = data.get("privacy") or {}
     feedback_raw = data.get("feedback") or {}
     dictionary_raw = data.get("dictionary") or {}
+    wake_raw = data.get("wake_word") or {}
 
     mic = data.get("microphone", None)
     if isinstance(mic, str) and mic.strip().isdigit():
         mic = int(mic.strip())
 
+    mode = str(data.get("mode", "hotkey")).strip().lower()
+    if mode not in {"hotkey", "wake_word"}:
+        raise ConfigError("mode must be 'hotkey' or 'wake_word'")
+
+    wake_word = WakeWordConfig(
+        start_phrase=str(wake_raw.get("start_phrase", WakeWordConfig.start_phrase)),
+        end_phrase=str(wake_raw.get("end_phrase", WakeWordConfig.end_phrase)),
+        vad_silence_seconds=float(
+            wake_raw.get("vad_silence_seconds", WakeWordConfig.vad_silence_seconds)
+        ),
+        match_tolerance=float(
+            wake_raw.get("match_tolerance", WakeWordConfig.match_tolerance)
+        ),
+    )
+    if wake_word.vad_silence_seconds <= 0:
+        raise ConfigError("wake_word.vad_silence_seconds must be greater than 0")
+    if not 0 < wake_word.match_tolerance <= 1:
+        raise ConfigError("wake_word.match_tolerance must be between 0 and 1")
+    if not wake_word.start_phrase.strip() or not wake_word.end_phrase.strip():
+        raise ConfigError("wake_word start_phrase and end_phrase must be non-empty")
+
     cfg = AppConfig(
         hotkey=str(data.get("hotkey", "f8")).lower(),
+        mode=mode,
         language=language,
         task=task,
         model=str(data.get("model", "medium")),
@@ -213,7 +246,7 @@ def config_from_dict(data: dict[str, Any], source_path: Path | None = None) -> A
         compute_type=str(data.get("compute_type", "int8")),
         microphone=mic,
         samplerate=int(data.get("samplerate", 16000)),
-        max_recording_seconds=float(data.get("max_recording_seconds", 60.0)),
+        max_recording_seconds=float(data.get("max_recording_seconds", 300.0)),
         auto_send=bool(data.get("auto_send", False)),
         min_hold_seconds=float(data.get("min_hold_seconds", 0.3)),
         min_confidence=float(data.get("min_confidence", 0.35)),
@@ -235,6 +268,7 @@ def config_from_dict(data: dict[str, Any], source_path: Path | None = None) -> A
             error=_as_tone(feedback_raw.get("error"), (500, 180)),
             busy=_as_tone(feedback_raw.get("busy"), (500, 120)),
         ),
+        wake_word=wake_word,
         replacements=_parse_replacements(dictionary_raw.get("replacements")),
         profiles=_parse_profiles(data.get("profiles")),
         source_path=source_path,

@@ -47,7 +47,7 @@ def test_config_from_dict_defaults(tmp_path: Path):
     assert cfg.device == "cpu"
     assert cfg.compute_type == "int8"
     assert cfg.auto_send is False
-    assert cfg.max_recording_seconds == 60.0
+    assert cfg.max_recording_seconds == 300.0
     assert cfg.language == "th"
     assert cfg.task == "transcribe"
 
@@ -86,6 +86,20 @@ def test_max_recording_seconds_must_be_positive():
         config_from_dict(
             {"language": "th", "task": "transcribe", "max_recording_seconds": 0}
         )
+
+
+def test_config_defaults_include_wake_word_mode_and_five_minute_limit():
+    cfg = config_from_dict({})
+    assert cfg.mode == "hotkey"
+    assert cfg.max_recording_seconds == 300.0
+    assert cfg.wake_word.start_phrase == "เฮ้ พุดไทป์"
+    assert cfg.wake_word.end_phrase == "ส่งได้ พุดไทป์"
+    assert cfg.auto_send is False
+
+
+def test_mode_must_be_hotkey_or_wake_word():
+    with pytest.raises(ConfigError):
+        config_from_dict({"mode": "always_on"})
 
 
 def test_hf_home_environment_is_used_without_private_machine_path(monkeypatch, tmp_path):

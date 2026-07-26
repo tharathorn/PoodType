@@ -70,7 +70,7 @@ class Recorder:
         *,
         samplerate: int = 16000,
         microphone: int | str | None = None,
-        max_recording_seconds: float = 60.0,
+        max_recording_seconds: float = 300.0,
     ) -> None:
         self.samplerate = samplerate
         self.microphone = resolve_input_device(microphone)
