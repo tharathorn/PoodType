@@ -321,6 +321,16 @@ class WakeWordListener:
                 logger.info("wake_speech_detected")
                 self._speech_logged = True
             self._speech_chunks.append(samples.copy())
+            # The wake phrase is short (~1.5s). Cap the listening buffer so long
+            # talking doesn't build a huge window that Whisper loops on.
+            listen_cap = int(self.config.samplerate * 4.0)
+            total = sum(int(c.size) for c in self._speech_chunks)
+            if total > listen_cap:
+                window = _concat_audio(self._speech_chunks)[-listen_cap:]
+                self._speech_chunks = []
+                self._vad.reset()
+                self._speech_logged = False
+                self._enqueue_asr("listen", window)
             return
         if state != "silence_complete":
             if state == "silence" and self._speech_chunks:

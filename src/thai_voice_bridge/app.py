@@ -19,7 +19,7 @@ from thai_voice_bridge.paste import PasteError, paste_text
 from thai_voice_bridge.phrases import strip_command_phrases
 from thai_voice_bridge.privacy import log_transcript, setup_logging, summarize_event
 from thai_voice_bridge.wake_listener import WakeWordListener
-from thai_voice_bridge.whisper_engine import WhisperEngine, discover_cached_model
+from thai_voice_bridge.whisper_engine import WhisperEngine
 
 
 class AppState(str, Enum):
@@ -208,23 +208,22 @@ class VoiceBridgeApp:
             self._set_state(AppState.IDLE)
 
     def _get_wake_engine(self) -> WhisperEngine:
-        """Faster/smaller model for wake/end phrase windows (not final paste)."""
+        """Engine for wake/end phrase windows.
+
+        The 'small' model mis-hears the coined phrase 'พุดไทป์' badly, so reuse
+        the same (medium) model as the hotkey path for accurate matching.
+        """
         if self._wake_engine is not None:
             return self._wake_engine
-        wake_model = "small"
-        if discover_cached_model(wake_model, self.config.hf_cache_dir) is None:
-            wake_model = self.config.model
-            self.logger.info("wake_fast_model_missing fallback=%s", wake_model)
         wake_cfg = replace(
             self.config,
-            model=wake_model,
             beam_size=1,
             # Do NOT seed wake phrases as initial_prompt — Whisper then loops
             # them on ambient noise and we never see a clean match.
             initial_prompt="",
         )
         self._wake_engine = WhisperEngine(wake_cfg)
-        self.logger.info("wake_fast_model=%s beam_size=1", wake_model)
+        self.logger.info("wake_engine_model=%s beam_size=1", self.config.model)
         return self._wake_engine
 
     def _transcribe_window(self, audio: np.ndarray) -> str:
