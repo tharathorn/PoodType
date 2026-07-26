@@ -28,9 +28,9 @@ allow_model_download: false
 wake_word:
   start_phrase: "เฮ้ พุดไทป์"
   end_phrase: "ส่งได้ พุดไทป์"
-  vad_silence_seconds: 0.5
+  vad_silence_seconds: 0.8
   speech_rms: 0.01
-  match_tolerance: 0.8
+  match_tolerance: 0.75
 
 privacy:
   persist_transcripts: false

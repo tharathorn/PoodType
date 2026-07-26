@@ -49,10 +49,10 @@ class FeedbackConfig:
 class WakeWordConfig:
     start_phrase: str = "เฮ้ พุดไทป์"
     end_phrase: str = "ส่งได้ พุดไทป์"
-    vad_silence_seconds: float = 0.5
+    vad_silence_seconds: float = 0.8
     # Gate ambient noise (~0.003) while still catching clear speech (~0.02+).
     speech_rms: float = 0.01
-    match_tolerance: float = 0.8
+    match_tolerance: float = 0.75
 
 
 @dataclass

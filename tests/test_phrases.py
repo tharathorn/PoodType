@@ -21,6 +21,15 @@ def test_accepts_common_whisper_aliases_for_brand():
     assert contains_phrase("ส่งได้ พุดไทย", END, tolerance=0.8)
 
 
+def test_accepts_live_whisper_mishearings_of_wake_phrase():
+    # Real transcripts from the user's mic while saying "เฮ้ พุดไทป์".
+    assert contains_phrase("โอเค พูดท้าย", START, tolerance=0.75)
+    assert contains_phrase("ภูทัย", START, tolerance=0.75)
+    assert contains_phrase("เทพุทธ", START, tolerance=0.75)
+    assert not contains_phrase("อิสระที่สุดท้าย", START, tolerance=0.75)
+    assert not contains_phrase("โอเค", START, tolerance=0.75)
+
+
 def test_strips_start_and_end_for_paste_payload():
     text = "เฮ้ พุดไทป์ พรุ่งนี้ประชุม 10 โมง ส่งได้ พุดไทป์"
     assert (
