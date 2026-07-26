@@ -103,7 +103,7 @@ def cmd_run(config_path: Path | None, no_lock: bool) -> int:
 
         app = VoiceBridgeApp(cfg)
         print(
-            f"Ready. Hold [{cfg.hotkey.upper()}] to record. "
+            f"Ready. Press [{cfg.hotkey.upper()}] to start, press again to stop. "
             f"auto_send={cfg.auto_send} model={cfg.model} device={cfg.device}"
         )
         app.preload_model()
