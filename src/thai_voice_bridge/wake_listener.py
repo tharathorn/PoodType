@@ -54,6 +54,7 @@ class WakeWordListener:
         self._vad = EnergyVad(
             samplerate=config.samplerate,
             silence_seconds=config.wake_word.vad_silence_seconds,
+            speech_rms=config.wake_word.speech_rms,
         )
         self._speech_chunks: list[np.ndarray] = []
         self._record_chunks: list[np.ndarray] = []
@@ -65,16 +66,29 @@ class WakeWordListener:
         self._asr_busy = False
         self._worker_stop = threading.Event()
         self._worker: threading.Thread | None = None
+        self._callback_frames = 0
+        self._peak_rms = 0.0
+        self._last_audio_log = 0.0
+        self._speech_logged = False
 
     def enable(self) -> None:
         with self._lock:
             self._enabled = True
             self.phase = "listening"
             self._reset_buffers()
+        self._speech_logged = False
+        self._callback_frames = 0
+        self._peak_rms = 0.0
+        self._last_audio_log = 0.0
         self._ensure_worker()
         if self.open_mic:
             self.start()
-        logger.info("wake_listener_enabled open_mic=%s", self.open_mic)
+        logger.info(
+            "wake_listener_enabled open_mic=%s speech_rms=%.5f silence=%.2fs",
+            self.open_mic,
+            self.config.wake_word.speech_rms,
+            self.config.wake_word.vad_silence_seconds,
+        )
 
     def disable(self) -> None:
         with self._lock:
@@ -249,6 +263,22 @@ class WakeWordListener:
         samples = np.asarray(frame, dtype=np.float32).reshape(-1)
         if samples.size == 0:
             return
+        rms = float(np.sqrt(np.mean(np.square(samples))))
+        self._callback_frames += 1
+        if rms > self._peak_rms:
+            self._peak_rms = rms
+        now = time.monotonic()
+        if now - self._last_audio_log >= 2.0:
+            logger.info(
+                "wake_audio_tick phase=%s frames=%d peak_rms=%.5f threshold=%.5f",
+                self.phase,
+                self._callback_frames,
+                self._peak_rms,
+                self.config.wake_word.speech_rms,
+            )
+            self._peak_rms = 0.0
+            self._callback_frames = 0
+            self._last_audio_log = now
         with self._lock:
             if not self._enabled:
                 return
@@ -261,6 +291,9 @@ class WakeWordListener:
     def _feed_listening(self, samples: np.ndarray) -> None:
         state = self._vad.update(samples)
         if state == "speech":
+            if not self._speech_logged:
+                logger.info("wake_speech_detected")
+                self._speech_logged = True
             self._speech_chunks.append(samples.copy())
             return
         if state != "silence_complete":
@@ -268,8 +301,10 @@ class WakeWordListener:
                 self._speech_chunks.append(samples.copy())
             return
 
+        self._speech_logged = False
         audio = normalize_audio(self._speech_chunks)
         self._speech_chunks = []
+        logger.info("wake_silence_complete samples=%d", int(audio.size))
         self._enqueue_asr("listen", audio)
 
     def _feed_recording(self, samples: np.ndarray) -> None:

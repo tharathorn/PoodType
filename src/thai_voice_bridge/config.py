@@ -49,7 +49,9 @@ class FeedbackConfig:
 class WakeWordConfig:
     start_phrase: str = "เฮ้ พุดไทป์"
     end_phrase: str = "ส่งได้ พุดไทป์"
-    vad_silence_seconds: float = 1.0
+    vad_silence_seconds: float = 0.5
+    # Consumer mics often peak ~0.002–0.01 in float32; 0.02 was deaf.
+    speech_rms: float = 0.001
     match_tolerance: float = 0.8
 
 
@@ -225,12 +227,15 @@ def config_from_dict(data: dict[str, Any], source_path: Path | None = None) -> A
         vad_silence_seconds=float(
             wake_raw.get("vad_silence_seconds", WakeWordConfig.vad_silence_seconds)
         ),
+        speech_rms=float(wake_raw.get("speech_rms", WakeWordConfig.speech_rms)),
         match_tolerance=float(
             wake_raw.get("match_tolerance", WakeWordConfig.match_tolerance)
         ),
     )
     if wake_word.vad_silence_seconds <= 0:
         raise ConfigError("wake_word.vad_silence_seconds must be greater than 0")
+    if wake_word.speech_rms <= 0:
+        raise ConfigError("wake_word.speech_rms must be greater than 0")
     if not 0 < wake_word.match_tolerance <= 1:
         raise ConfigError("wake_word.match_tolerance must be between 0 and 1")
     if not wake_word.start_phrase.strip() or not wake_word.end_phrase.strip():

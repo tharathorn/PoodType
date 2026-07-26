@@ -42,6 +42,7 @@ STATE_COLORS = {
     AppState.ERROR: (108, 117, 125, 255),
     AppState.STOPPED: (108, 117, 125, 255),
 }
+WAKE_LISTEN_COLOR = (30, 144, 255, 255)  # blue = wake armed / listening
 
 
 class TrayApplication:
@@ -55,6 +56,11 @@ class TrayApplication:
         if self.config.mode == "wake_word":
             return "wake_word"
         return self.config.hotkey.upper()
+
+    def _icon_color(self) -> tuple[int, int, int, int]:
+        if self._state == AppState.IDLE and self.config.mode == "wake_word":
+            return WAKE_LISTEN_COLOR
+        return STATE_COLORS.get(self._state, STATE_COLORS[AppState.IDLE])
 
     def _title(self) -> str:
         return f"PoodType [{self._state.value}] — {self._mode_label()}"
@@ -102,14 +108,17 @@ class TrayApplication:
         self._persist_mode(mode)
         if self._icon is not None:
             self._icon.title = self._title()
+            self._icon.icon = _make_icon(self._icon_color())
             if mode == "wake_word":
                 try:
                     self._icon.notify(
-                        "พูด «เฮ้ พุดไทป์» แล้วหยุดเงียบ ~1 วินาที",
+                        "พูด «เฮ้ พุดไทป์» แล้วหยุดเงียบครึ่งวินาที",
                         "PoodType — Wake word",
                     )
                 except Exception:  # noqa: BLE001
                     logger.debug("tray notify unavailable", exc_info=True)
+                # Audible confirmation that wake mode is armed (F8-like feedback).
+                self.app.feedback.success()
 
     def _set_mode_hotkey(self, _icon=None, _item=None) -> None:  # noqa: ANN001
         self._apply_mode("hotkey")
@@ -126,7 +135,7 @@ class TrayApplication:
         self._state = state
         if self._icon is None:
             return
-        self._icon.icon = _make_icon(STATE_COLORS.get(state, STATE_COLORS[AppState.IDLE]))
+        self._icon.icon = _make_icon(self._icon_color())
         self._icon.title = self._title()
 
     def _boot(self) -> None:
@@ -165,7 +174,7 @@ class TrayApplication:
         )
         self._icon = pystray.Icon(
             "poodtype",
-            _make_icon(STATE_COLORS[AppState.IDLE]),
+            _make_icon(self._icon_color()),
             self._title(),
             menu,
         )
