@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import threading
-from dataclasses import replace
 from enum import Enum
 from pathlib import Path
 
@@ -46,7 +45,6 @@ class VoiceBridgeApp:
         self._work_generation = 0
         self._hotkey: HotkeyController | None = None
         self._wake_listener: WakeWordListener | None = None
-        self._wake_engine: WhisperEngine | None = None
         self._shutdown = threading.Event()
         self.on_state_change = None  # optional callable[[AppState], None]
 
@@ -164,10 +162,6 @@ class VoiceBridgeApp:
 
     def _start_wake_listener(self) -> None:
         self._stop_wake_listener()
-        try:
-            self._get_wake_engine().ensure_model()
-        except Exception as exc:  # noqa: BLE001
-            self.logger.warning("wake_fast_model_preload_failed: %s", exc)
         self._wake_listener = WakeWordListener(
             self.config,
             feedback=self.feedback,
@@ -207,35 +201,29 @@ class VoiceBridgeApp:
                     return
             self._set_state(AppState.IDLE)
 
-    def _get_wake_engine(self) -> WhisperEngine:
-        """Engine for wake/end phrase windows.
-
-        The 'small' model mis-hears the coined phrase 'พุดไทป์' badly, so reuse
-        the same (medium) model as the hotkey path for accurate matching.
-        """
-        if self._wake_engine is not None:
-            return self._wake_engine
-        wake_cfg = replace(
-            self.config,
-            beam_size=1,
-            # Do NOT seed wake phrases as initial_prompt — Whisper then loops
-            # them on ambient noise and we never see a clean match.
-            initial_prompt="",
-        )
-        self._wake_engine = WhisperEngine(wake_cfg)
-        self.logger.info("wake_engine_model=%s beam_size=1", self.config.model)
-        return self._wake_engine
-
     def _transcribe_window(self, audio: np.ndarray) -> str:
         samples = np.asarray(audio, dtype=np.float32).reshape(-1)
         # Keep the end of the utterance — wake/end phrases are spoken last.
         max_samples = max(1, int(self.config.samplerate * 2.5))
         if samples.size > max_samples:
             samples = samples[-max_samples:]
+        # Peak-normalize loud enough windows (same as hotkey). Quiet noise is
+        # filtered upstream; normalizing silence causes Whisper loops.
+        peak = float(np.max(np.abs(samples))) if samples.size else 0.0
+        if peak >= 0.01:
+            samples = samples / peak
         path = unique_temp_wav(prefix="poodtype_wake_win_")
         try:
             write_wav(path, samples, self.config.samplerate)
-            result = self._get_wake_engine().transcribe_file(path)
+            # Reuse the hotkey engine (avoid a second medium model). Empty
+            # prompt + no Whisper VAD — short wake clips get mangled by VAD.
+            result = self.engine.transcribe_file(
+                path,
+                initial_prompt="",
+                beam_size=1,
+                try_vad_filters=(False,),
+                no_speech_threshold=0.6,
+            )
             return (result.text or "").strip()
         finally:
             if not self.config.privacy.persist_audio:

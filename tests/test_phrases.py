@@ -15,6 +15,12 @@ def test_detects_start_and_end_phrases():
     assert not contains_phrase("ส่งได้ พุดไทป์", START, tolerance=0.8)
 
 
+def test_accepts_common_whisper_aliases_for_brand():
+    assert contains_phrase("เฮ้ พุทไทป์", START, tolerance=0.8)
+    assert contains_phrase("เฮ พุดไทย", START, tolerance=0.8)
+    assert contains_phrase("ส่งได้ พุดไทย", END, tolerance=0.8)
+
+
 def test_strips_start_and_end_for_paste_payload():
     text = "เฮ้ พุดไทป์ พรุ่งนี้ประชุม 10 โมง ส่งได้ พุดไทป์"
     assert (

@@ -29,7 +29,7 @@ wake_word:
   start_phrase: "เฮ้ พุดไทป์"
   end_phrase: "ส่งได้ พุดไทป์"
   vad_silence_seconds: 0.5
-  speech_rms: 0.001
+  speech_rms: 0.01
   match_tolerance: 0.8
 
 privacy:

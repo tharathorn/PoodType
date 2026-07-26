@@ -25,6 +25,7 @@ from thai_voice_bridge.vad import EnergyVad
 
 logger = logging.getLogger("thai_voice_bridge.wake")
 
+
 def _concat_audio(chunks: list[np.ndarray]) -> np.ndarray:
     """Join float32 frames without peak-normalization.
 
@@ -34,6 +35,23 @@ def _concat_audio(chunks: list[np.ndarray]) -> np.ndarray:
     if not chunks:
         return np.array([], dtype=np.float32)
     return np.concatenate(chunks, axis=0).astype(np.float32)
+
+
+def _is_looping_hallucination(text: str) -> bool:
+    tokens = [t for t in (text or "").split() if t]
+    if len(tokens) >= 6 and len(set(tokens)) <= 2:
+        return True
+    compact = (text or "").replace(" ", "")
+    if len(compact) < 24:
+        return False
+    # Repeated 4–12 char substrings (common Whisper loop on noise).
+    for size in (4, 6, 8, 12):
+        if len(compact) < size * 3:
+            continue
+        chunk = compact[:size]
+        if compact.count(chunk) >= 4:
+            return True
+    return False
 
 
 class WakeWordListener:
@@ -222,9 +240,8 @@ class WakeWordListener:
             self.feedback.start()
             logger.info("wake_start_phrase_matched")
             return
-        # Ignore looping hallucinations only when they are NOT the start phrase.
-        tokens = [t for t in text.split() if t]
-        if len(tokens) >= 6 and len(set(tokens)) <= 2:
+        # Ignore looping Whisper hallucinations (ambient → repeated filler).
+        if _is_looping_hallucination(text):
             logger.info("wake_listen_hallucination_ignored")
             return
 
@@ -268,13 +285,31 @@ class WakeWordListener:
         if audio.size == 0:
             return
         peak = float(np.max(np.abs(audio))) if audio.size else 0.0
-        # Skip near-silent windows that only produce Whisper hallucinations.
-        if peak < self.config.wake_word.speech_rms:
-            logger.info("wake_asr_skip_quiet kind=%s peak=%.5f", kind, peak)
+        # Ambient ticks (~0.003) flood the ASR queue and stall wake detection.
+        # Clear speech for the wake phrase typically peaks >= ~0.02.
+        min_peak = max(self.config.wake_word.speech_rms * 1.5, 0.015)
+        if peak < min_peak:
+            logger.info(
+                "wake_asr_skip_quiet kind=%s peak=%.5f min=%.5f",
+                kind,
+                peak,
+                min_peak,
+            )
             return
         job: AsrJob = (kind, audio)
-        # If ASR is busy, keep only the newest window (the wake phrase is usually last).
+        # If ASR is busy, keep only the newest/loudest window.
         if self._asr_busy or not self._asr_queue.empty():
+            pending = self._pending_job
+            if pending is not None:
+                prev_peak = float(np.max(np.abs(pending[1]))) if pending[1].size else 0.0
+                if peak < prev_peak * 0.7:
+                    logger.info(
+                        "wake_asr_drop_softer kind=%s peak=%.5f kept=%.5f",
+                        kind,
+                        peak,
+                        prev_peak,
+                    )
+                    return
             self._pending_job = job
             logger.info(
                 "wake_asr_pending kind=%s peak=%.5f samples=%d",
@@ -340,8 +375,8 @@ class WakeWordListener:
         self._speech_logged = False
         audio = _concat_audio(self._speech_chunks)
         self._speech_chunks = []
-        # Ignore clicks / blips shorter than ~0.35s.
-        if audio.size < int(self.config.samplerate * 0.25):
+        # Ignore clicks / blips shorter than ~0.5s (wake phrase is ~1–1.5s).
+        if audio.size < int(self.config.samplerate * 0.5):
             logger.info("wake_window_too_short samples=%d", int(audio.size))
             return
         logger.info("wake_silence_complete samples=%d", int(audio.size))

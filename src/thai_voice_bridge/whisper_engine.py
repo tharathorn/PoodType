@@ -134,25 +134,39 @@ class WhisperEngine:
         )
         return self._model
 
-    def transcribe_file(self, wav_path: Path) -> TranscriptResult:
+    def transcribe_file(
+        self,
+        wav_path: Path,
+        *,
+        initial_prompt: str | None = None,
+        beam_size: int | None = None,
+        try_vad_filters: tuple[bool, ...] | None = None,
+        no_speech_threshold: float | None = None,
+    ) -> TranscriptResult:
         if self.language != ENFORCED_LANGUAGE or self.task != ENFORCED_TASK:
             raise WhisperError("Language/task enforcement violated")
 
         model = self.ensure_model()
         last: TranscriptResult | None = None
+        prompt = (
+            self.config.initial_prompt if initial_prompt is None else initial_prompt
+        )
+        beams = self.config.beam_size if beam_size is None else beam_size
+        vad_modes = try_vad_filters if try_vad_filters is not None else (True, False)
+        speech_gate = 0.45 if no_speech_threshold is None else no_speech_threshold
 
-        for vad_filter in (True, False):
+        for vad_filter in vad_modes:
             segments_iter, info = model.transcribe(
                 str(wav_path),
                 language=ENFORCED_LANGUAGE,
                 task=ENFORCED_TASK,
-                beam_size=self.config.beam_size,
+                beam_size=beams,
                 vad_filter=vad_filter,
-                initial_prompt=self.config.initial_prompt,
+                initial_prompt=prompt,
                 temperature=0.0,
                 condition_on_previous_text=False,
                 compression_ratio_threshold=2.0,
-                no_speech_threshold=0.45,
+                no_speech_threshold=speech_gate,
             )
             segments = list(segments_iter)
             text = " ".join(s.text.strip() for s in segments).strip()
