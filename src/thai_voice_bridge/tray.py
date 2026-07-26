@@ -93,6 +93,10 @@ class TrayApplication:
             logger.error("Cannot persist mode=%s: %s", mode, exc)
 
     def _apply_mode(self, mode: str) -> None:
+        if self.config.mode == mode:
+            logger.info("mode_unchanged mode=%s", mode)
+            return
+        logger.info("mode_switch requested=%s", mode)
         self.app.set_mode(mode)
         self.config.mode = mode
         self._persist_mode(mode)
@@ -149,13 +153,11 @@ class TrayApplication:
                 hotkey_label,
                 self._set_mode_hotkey,
                 checked=lambda item: self.config.mode == "hotkey",
-                radio=True,
             ),
             pystray.MenuItem(
                 "Mode: Wake word",
                 self._set_mode_wake_word,
                 checked=lambda item: self.config.mode == "wake_word",
-                radio=True,
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Settings…", self._open_settings),
