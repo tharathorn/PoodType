@@ -74,11 +74,13 @@ def test_start_phrase_enters_recording_and_end_phrase_emits_utterance(tmp_path: 
     listener.enable()
 
     _pump_utterance(listener)
+    assert listener.wait_asr_idle(timeout=2.0)
     assert listener.phase == "recording"
     feedback.start.assert_called_once()
     assert phases == ["recording"]
 
     _pump_utterance(listener)
+    assert listener.wait_asr_idle(timeout=2.0)
     assert listener.phase == "listening"
     feedback.stop.assert_called_once()
     # Finish path leaves tray red until app flips to BUSY (no listening notify).
@@ -86,6 +88,7 @@ def test_start_phrase_enters_recording_and_end_phrase_emits_utterance(tmp_path: 
     assert len(utterances) == 1
     assert utterances[0].exists()
     utterances[0].unlink(missing_ok=True)
+    listener.disable()
 
 
 def test_end_phrase_ignored_while_listening():
@@ -107,10 +110,12 @@ def test_end_phrase_ignored_while_listening():
     )
     listener.enable()
     _pump_utterance(listener)
+    assert listener.wait_asr_idle(timeout=2.0)
     assert listener.phase == "listening"
     assert utterances == []
     feedback.start.assert_not_called()
     feedback.stop.assert_not_called()
+    listener.disable()
 
 
 def test_max_duration_discards_without_utterance_callback():
@@ -133,6 +138,7 @@ def test_max_duration_discards_without_utterance_callback():
     )
     listener.enable()
     _pump_utterance(listener, frames=1, quiet_frames=1)
+    assert listener.wait_asr_idle(timeout=2.0)
     assert listener.phase == "recording"
     # Feed enough recording audio to exceed 0.05s at 16kHz (~800 samples)
     for _ in range(3):
@@ -140,3 +146,4 @@ def test_max_duration_discards_without_utterance_callback():
     assert listener.phase == "listening"
     assert utterances == []
     feedback.error.assert_called()
+    listener.disable()

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
+from pathlib import Path
 from typing import Any
 
 from thai_voice_bridge.config import PrivacyConfig
@@ -21,15 +23,35 @@ def sanitize_text(text: str, *, max_chars: int = 40) -> str:
     return cleaned
 
 
+def default_log_path() -> Path:
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP") or "."
+    return Path(base) / "PoodType" / "poodtype.log"
+
+
 def setup_logging(privacy: PrivacyConfig) -> logging.Logger:
     logger = logging.getLogger("thai_voice_bridge")
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-        )
-        logger.addHandler(handler)
-    logger.setLevel(getattr(logging, privacy.log_level.upper(), logging.INFO))
+    level = getattr(logging, privacy.log_level.upper(), logging.INFO)
+    logger.setLevel(level)
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
+    has_stream = any(
+        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+        for h in logger.handlers
+    )
+    if not has_stream:
+        stream = logging.StreamHandler()
+        stream.setFormatter(formatter)
+        logger.addHandler(stream)
+    if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+        log_path = default_log_path()
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = logging.FileHandler(log_path, encoding="utf-8")
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+        except OSError:
+            pass
     return logger
 
 

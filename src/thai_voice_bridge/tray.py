@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from pathlib import Path
-from typing import Any
 
-import yaml
 from PIL import Image, ImageDraw
 
 from thai_voice_bridge.app import AppState, VoiceBridgeApp
@@ -15,7 +14,6 @@ from thai_voice_bridge.config import (
     AppConfig,
     default_user_config_path,
     ensure_user_config,
-    load_raw_dict,
 )
 
 logger = logging.getLogger("thai_voice_bridge.tray")
@@ -81,17 +79,16 @@ class TrayApplication:
         if path is None:
             return
         try:
-            data: dict[str, Any]
             if path.exists():
-                data = load_raw_dict(path)
+                text = path.read_text(encoding="utf-8")
             else:
-                data = {}
-            data["mode"] = mode
+                text = ""
+            if re.search(r"(?m)^mode:\s*.*$", text):
+                text = re.sub(r"(?m)^mode:\s*.*$", f"mode: {mode}", text, count=1)
+            else:
+                text = text.rstrip() + f"\nmode: {mode}\n"
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(
-                yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
-                encoding="utf-8",
-            )
+            path.write_text(text, encoding="utf-8")
         except OSError as exc:
             logger.error("Cannot persist mode=%s: %s", mode, exc)
 
@@ -101,6 +98,14 @@ class TrayApplication:
         self._persist_mode(mode)
         if self._icon is not None:
             self._icon.title = self._title()
+            if mode == "wake_word":
+                try:
+                    self._icon.notify(
+                        "พูด «เฮ้ พุดไทป์» แล้วหยุดเงียบ ~1 วินาที",
+                        "PoodType — Wake word",
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.debug("tray notify unavailable", exc_info=True)
 
     def _set_mode_hotkey(self, _icon=None, _item=None) -> None:  # noqa: ANN001
         self._apply_mode("hotkey")
