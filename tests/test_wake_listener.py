@@ -122,7 +122,7 @@ def test_max_duration_discards_without_utterance_callback():
     cfg = config_from_dict(
         {
             "mode": "wake_word",
-            "max_recording_seconds": 0.05,
+            "max_recording_seconds": 0.25,
             "wake_word": {"vad_silence_seconds": 0.1},
         }
     )
@@ -140,8 +140,8 @@ def test_max_duration_discards_without_utterance_callback():
     _pump_utterance(listener, frames=4, quiet_frames=2)
     assert listener.wait_asr_idle(timeout=2.0)
     assert listener.phase == "recording"
-    # Feed enough recording audio to exceed 0.05s at 16kHz (~800 samples)
-    for _ in range(3):
+    # Exceed 0.25s at 16kHz (~4000 samples) with several frames.
+    for _ in range(5):
         listener.feed_audio(_speech_frame(1600))
     assert listener.phase == "listening"
     assert utterances == []
