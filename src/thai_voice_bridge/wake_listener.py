@@ -14,7 +14,6 @@ import numpy as np
 import sounddevice as sd
 
 from thai_voice_bridge.audio import (
-    normalize_audio,
     resolve_input_device,
     unique_temp_wav,
     write_wav,
@@ -26,8 +25,15 @@ from thai_voice_bridge.vad import EnergyVad
 
 logger = logging.getLogger("thai_voice_bridge.wake")
 
-Phase = Literal["listening", "recording"]
-AsrJob = tuple[Literal["listen", "end"], np.ndarray]
+def _concat_audio(chunks: list[np.ndarray]) -> np.ndarray:
+    """Join float32 frames without peak-normalization.
+
+    Peak-normalizing quiet room noise makes Faster Whisper hallucinate
+    (e.g. repeating สวัสดี / ต่อไป), which breaks wake-phrase matching.
+    """
+    if not chunks:
+        return np.array([], dtype=np.float32)
+    return np.concatenate(chunks, axis=0).astype(np.float32)
 
 
 class WakeWordListener:
@@ -190,6 +196,11 @@ class WakeWordListener:
             logger.error("wake_window_transcribe_failed: %s", exc)
             return
         logger.info("wake_listen_window text=%r", text)
+        # Drop obvious Whisper loop hallucinations before phrase match.
+        tokens = [t for t in text.split() if t]
+        if len(tokens) >= 6 and len(set(tokens)) <= 2:
+            logger.info("wake_listen_hallucination_ignored")
+            return
         if not contains_phrase(
             text,
             self.config.wake_word.start_phrase,
@@ -302,8 +313,12 @@ class WakeWordListener:
             return
 
         self._speech_logged = False
-        audio = normalize_audio(self._speech_chunks)
+        audio = _concat_audio(self._speech_chunks)
         self._speech_chunks = []
+        # Ignore clicks / blips shorter than ~0.35s.
+        if audio.size < int(self.config.samplerate * 0.25):
+            logger.info("wake_window_too_short samples=%d", int(audio.size))
+            return
         logger.info("wake_silence_complete samples=%d", int(audio.size))
         self._enqueue_asr("listen", audio)
 
@@ -332,8 +347,10 @@ class WakeWordListener:
                 self._speech_chunks.append(samples.copy())
             return
 
-        window = normalize_audio(self._speech_chunks)
+        window = _concat_audio(self._speech_chunks)
         self._speech_chunks = []
+        if window.size < int(self.config.samplerate * 0.25):
+            return
         self._enqueue_asr("end", window)
 
     def _discard_recording_limit(self) -> None:
@@ -351,11 +368,15 @@ class WakeWordListener:
             self._reset_buffers()
         # Stay visually "recording" until on_utterance flips app to BUSY.
         self.feedback.stop()
-        audio = normalize_audio(chunks)
+        audio = _concat_audio(chunks)
         if audio.size == 0:
             self._notify_phase("listening")
             self.feedback.error()
             return
+        # Peak-normalize only the final utterance for the paste model.
+        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+        if peak > 0:
+            audio = audio / peak
         path = unique_temp_wav(prefix="poodtype_wake_")
         write_wav(path, audio, self.config.samplerate)
         try:

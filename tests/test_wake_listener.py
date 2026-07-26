@@ -36,8 +36,8 @@ def _quiet_frame(samples: int = 1600) -> np.ndarray:
 def _pump_utterance(
     listener: WakeWordListener,
     *,
-    frames: int = 2,
-    quiet_frames: int = 1,
+    frames: int = 4,
+    quiet_frames: int = 2,
 ) -> None:
     for _ in range(frames):
         listener.feed_audio(_speech_frame())
@@ -137,7 +137,7 @@ def test_max_duration_discards_without_utterance_callback():
         open_mic=False,
     )
     listener.enable()
-    _pump_utterance(listener, frames=1, quiet_frames=1)
+    _pump_utterance(listener, frames=4, quiet_frames=2)
     assert listener.wait_asr_idle(timeout=2.0)
     assert listener.phase == "recording"
     # Feed enough recording audio to exceed 0.05s at 16kHz (~800 samples)
