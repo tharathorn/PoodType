@@ -37,6 +37,9 @@ def contains_phrase(text: str, phrase: str, *, tolerance: float = 0.8) -> bool:
         return False
     if needle in haystack:
         return True
+    tokens = [token for token in needle.split(" ") if token]
+    if len(tokens) >= 2 and not all(token in haystack for token in tokens):
+        return False
     return _best_window_ratio(haystack, needle) >= tolerance
 
 
