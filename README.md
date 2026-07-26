@@ -11,12 +11,13 @@
 
 - Local-only: ไม่เรียก cloud API (ยกเว้นดาวน์โหลดโมเดลเมื่อตั้ง `allow_model_download: true`)
 - ภาษาบังคับ `th` + `task: transcribe` (ห้าม translate เป็นอังกฤษ)
-- Push-to-talk ค่าเริ่มต้น **F8** (กดค้าง / ปล่อย)
-- วางข้อความด้วย Ctrl+V — **ไม่กด Enter** โดยค่าเริ่มต้น (`auto_send: false`)
+- Push-to-talk ค่าเริ่มต้น **F8** (กดค้าง / ปล่อย) — `mode: hotkey`
+- Hands-free wake-word mode (สลับจาก tray): พูด **เฮ้ พุดไทป์** เริ่มอัด → **ส่งได้ พุดไทป์** หยุดแล้ว paste
+- วางข้อความด้วย Ctrl+V — **ไม่กด Enter** โดยค่าเริ่มต้น (`auto_send: false`; wake-word บังคับ paste-only)
 - Restore clipboard เดิมหลังวาง
 - ยกเลิก paste ถ้าหน้าต่าง foreground เปลี่ยนระหว่างถอดเสียง
-- จำกัดการอัดค่าเริ่มต้น 60 วินาที; เกินแล้วทิ้งเสียงและไม่ paste
-- Tray icon: Pause/Resume, Settings, Exit + สถานะสี
+- จำกัดการอัดค่าเริ่มต้น **300 วินาที (5 นาที)** ทั้ง F8 และ wake-word; เกินแล้วทิ้งเสียงและไม่ paste
+- Tray icon: Pause/Resume, สลับ Mode Hotkey/Wake word, Settings, Exit + สถานะสี
 - Single-instance lock
 - Dictionary / per-app profile สำหรับศัพท์เทคนิค
 - ไม่เก็บเสียงหรือ transcript เต็มโดยค่าเริ่มต้น
@@ -79,10 +80,19 @@ python -m thai_voice_bridge tray
 python -m thai_voice_bridge run
 ```
 
+### Hotkey (ค่าเริ่มต้น)
+
 1. โฟกัสช่องพิมพ์ในแอปที่ต้องการ
 2. กดค้าง **F8** พูดภาษาไทย (ผสมศัพท์อังกฤษได้)
 3. ปล่อยปุ่ม → ข้อความถูกวางลงหน้าต่างปัจจุบัน
 4. กด Enter เองถ้าต้องการส่ง (หรือเปิด `auto_send: true`)
+
+### Wake-word (hands-free)
+
+1. คลิกขวา tray → เลือก **Mode: Wake word**
+2. พูด **เฮ้ พุดไทป์** → ได้ยินเสียง start แล้วพูดเนื้อหา
+3. พูด **ส่งได้ พุดไทป์** → ได้ยินเสียง stop → ถอดเสียงแล้ว paste (ไม่กด Enter; ตัดวลีเริ่ม/จบออก)
+4. สลับกลับ **Mode: Hotkey (F8)** ได้จาก tray เดียวกัน
 
 ## Config สำคัญ
 
@@ -90,7 +100,10 @@ python -m thai_voice_bridge run
 
 | คีย์ | ค่าเริ่มต้น | หมายเหตุ |
 |------|-------------|----------|
-| `hotkey` | `f8` | global PTT |
+| `mode` | `hotkey` | `hotkey` หรือ `wake_word` |
+| `hotkey` | `f8` | global PTT เมื่อ `mode: hotkey` |
+| `wake_word.start_phrase` | `เฮ้ พุดไทป์` | เริ่มอัด |
+| `wake_word.end_phrase` | `ส่งได้ พุดไทป์` | หยุดอัดแล้ว paste |
 | `language` | `th` | บังคับ |
 | `task` | `transcribe` | บังคับ |
 | `model` | `medium` | |
@@ -98,7 +111,7 @@ python -m thai_voice_bridge run
 | `auto_send` | `false` | |
 | `min_confidence` | `0.35` | ต่ำกว่านี้ไม่ paste |
 | `microphone` | `null` | index หรือชื่อย่อย |
-| `max_recording_seconds` | `60` | hard limit; เกินแล้วไม่สร้าง WAV/paste |
+| `max_recording_seconds` | `300` | hard limit ทั้งสองโหมด; เกินแล้วไม่สร้าง WAV/paste |
 | `hf_cache_dir` | auto-detect | path ไปยัง HF cache |
 | `allow_model_download` | `false` | |
 

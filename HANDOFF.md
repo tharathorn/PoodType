@@ -1,5 +1,20 @@
 # HANDOFF — PoodType
 
+## Wake-word mode — 2026-07-26 (awaiting owner smoke)
+
+Implemented on `master` (not released yet):
+
+- Tray switch: **Mode: Hotkey (F8)** ↔ **Mode: Wake word**
+- Start phrase `เฮ้ พุดไทป์` / end phrase `ส่งได้ พุดไทป์`
+- VAD + short Whisper windows for phrase detect; full utterance then paste
+- End path paste-only (`auto_send` forced false); strips start/end phrases
+- Shared `max_recording_seconds` default **300**; over-limit discards, no paste
+- Automated verify: `pytest -q` **61 passed**; `compileall -q src` OK
+- Spec: `docs/superpowers/specs/2026-07-26-wake-word-mode-design.md`
+- Plan: `docs/superpowers/plans/2026-07-26-wake-word-mode.md`
+
+Owner action: run `docs/MANUAL_SMOKE_CHECKLIST.md` (รวมส่วน Wake-word) ก่อน push/release
+
 ## Public release — 2026-07-25
 
 - Public repository: <https://github.com/tharathorn/PoodType>
@@ -33,13 +48,14 @@ Hardening ที่เพิ่ม:
 
 1. Pause/Exit ยกเลิก recording และ invalidate transcription ที่กำลังรัน
 2. จับ foreground HWND ตอนปล่อย F8; ถ้าหน้าต่างเปลี่ยนจะไม่ paste
-3. จำกัด recording 60 วินาที; เกินแล้วหยุด/ทิ้งและไม่สร้าง WAV
+3. จำกัด recording (ค่าเริ่มต้น 300 วินาที); เกินแล้วหยุด/ทิ้งและไม่สร้าง WAV
 4. Clipboard read/restore fail-closed
-5. Model preload ล้มเหลวแล้วไม่เปิด global hotkey
+5. Model preload ล้มเหลวแล้วไม่เปิด input listener
 6. Disable hotkey ล้าง held-key state ป้องกัน stale release
 
 งานต่อที่เป็น optional:
 
+- Owner manual smoke สำหรับ wake-word แล้วค่อย release
 - จัดหา code-signing certificate เพื่อลด SmartScreen warning
 - เพิ่ม screenshot/demo ใน GitHub README
 - เปิด Windows Startup เฉพาะเมื่อเจ้าของต้องการ
@@ -63,12 +79,17 @@ Hardening ที่เพิ่ม:
 ## สถาปัตยกรรมสั้นๆ
 
 ```
-Hotkey(F8 PTT) → Recorder(unique WAV) → WhisperEngine(th/transcribe)
-  → Dictionary(+profile) → confidence gate → paste(Ctrl+V) + clipboard restore
-  → optional Enter → delete WAV → feedback beeps
+mode=hotkey:
+  Hotkey(F8 PTT) → Recorder(unique WAV) → WhisperEngine(th/transcribe)
+    → Dictionary(+profile) → confidence gate → paste(Ctrl+V) + clipboard restore
+    → optional Enter → delete WAV → feedback beeps
+
+mode=wake_word:
+  WakeWordListener(VAD + short Whisper) → start/end phrases
+    → utterance WAV → strip phrases → same confidence/paste path (Enter forced off)
 ```
 
-Tray / single-instance ครอบรอบแอปหลัก
+Tray / single-instance ครอบรอบแอปหลัก (สลับโหมดได้จากเมนู)
 
 ## ความต่างจากต้นแบบ
 
@@ -86,7 +107,7 @@ Tray / single-instance ครอบรอบแอปหลัก
 1. ดาวน์โหลด Setup หรือ Portable จาก GitHub Release
 2. ตรวจ SHA-256 กับ `SHA256SUMS.txt`
 3. ติดตั้งหรือแตก ZIP แล้วเปิด `PoodType.exe`
-4. โฟกัสช่องพิมพ์ กด F8 ค้าง พูด แล้วปล่อย
+4. โฟกัสช่องพิมพ์ กด F8 ค้าง พูด แล้วปล่อย — หรือสลับ tray เป็น Wake word แล้วใช้วลีเริ่ม/จบ
 5. กด Enter เองเมื่อต้องการส่ง (`auto_send: false`)
 
 ## คำสั่งตรวจสอบที่ทำแล้ว / ควรทำซ้ำ
@@ -114,9 +135,11 @@ python -m thai_voice_bridge discover-cache
 
 ## ไฟล์สำคัญ
 
-- `src/thai_voice_bridge/app.py` — orchestration
+- `src/thai_voice_bridge/app.py` — orchestration (hotkey + wake-word modes)
+- `src/thai_voice_bridge/wake_listener.py` — VAD + phrase detect loop
+- `src/thai_voice_bridge/phrases.py` — wake/end phrase match + strip
 - `src/thai_voice_bridge/whisper_engine.py` — Faster Whisper + cache discovery
 - `src/thai_voice_bridge/paste.py` — clipboard restore
-- `src/thai_voice_bridge/tray.py` — system tray
+- `src/thai_voice_bridge/tray.py` — system tray (mode switch)
 - `config.example.yaml` — แม่แบบ config
 - `scripts/install_startup.ps1` — **manual only**

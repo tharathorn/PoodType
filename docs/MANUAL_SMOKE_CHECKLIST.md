@@ -16,7 +16,18 @@
 - [ ] กด F8 ค้างแล้วกด Pause → เสียงหยุด, ปล่อย F8 แล้วไม่ paste, Resume แล้วอัดรอบใหม่ได้
 - [ ] ปล่อย F8 แล้วสลับไปอีกหน้าต่างระหว่าง transcribe → ไม่ paste ในหน้าต่างใหม่
 - [ ] กด Exit ระหว่าง transcribe → หลัง Exit แล้วไม่มีข้อความ paste ตามมา
-- [ ] ตั้ง `max_recording_seconds: 3` ชั่วคราว, พูดเกิน 3 วินาที → ไม่ paste; คืนค่า `60`
+- [ ] ตั้ง `max_recording_seconds: 3` ชั่วคราว, พูดเกิน 3 วินาที → ไม่ paste; คืนค่า `300`
+
+## Wake-word mode
+
+- [ ] Tray → **Mode: Wake word** → title แสดง `wake_word`
+- [ ] พูด **เฮ้ พุดไทป์** → ได้ยินเสียง start
+- [ ] พูดเนื้อหาสั้นๆ แล้วพูด **ส่งได้ พุดไทป์** → เสียง stop แล้ว success
+- [ ] ข้อความถูก paste โดย**ไม่**กด Enter และ**ไม่มี**วลีเริ่ม/จบติดมา
+- [ ] พูดเกิน `max_recording_seconds` ระหว่าง wake-record → เสียง error, ไม่ paste, กลับไปฟัง wake ต่อ
+- [ ] Pause ขณะ listening → ไม่ตอบ wake; Resume แล้วใช้งานต่อได้
+- [ ] Tray → **Mode: Hotkey (F8)** → title แสดง `F8` และ F8 ใช้ได้ตามเดิม
+- [ ] ตรวจ `%LOCALAPPDATA%\PoodType\config.yaml` มี `mode:` ตามที่สลับล่าสุด
 
 ## Cursor
 
