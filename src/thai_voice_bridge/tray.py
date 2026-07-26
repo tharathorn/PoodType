@@ -159,14 +159,14 @@ class TrayApplication:
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                hotkey_label,
-                self._set_mode_hotkey,
-                checked=lambda item: self.config.mode == "hotkey",
-            ),
-            pystray.MenuItem(
                 "Mode: Wake word",
                 self._set_mode_wake_word,
                 checked=lambda item: self.config.mode == "wake_word",
+            ),
+            pystray.MenuItem(
+                hotkey_label,
+                self._set_mode_hotkey,
+                checked=lambda item: self.config.mode == "hotkey",
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Settings…", self._open_settings),
