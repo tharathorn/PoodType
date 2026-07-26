@@ -137,7 +137,7 @@ def test_max_duration_discards_without_utterance_callback():
         open_mic=False,
     )
     listener.enable()
-        _pump_utterance(listener, frames=8, quiet_frames=2)
+    _pump_utterance(listener, frames=8, quiet_frames=2)
     assert listener.wait_asr_idle(timeout=2.0)
     assert listener.phase == "recording"
     # Exceed 0.25s at 16kHz (~4000 samples) with several frames.
