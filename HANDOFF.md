@@ -1,5 +1,41 @@
 # HANDOFF — PoodType
 
+## Session closeout — 2026-07-26 ~08:12 Asia/Bangkok
+
+### Done / owner-verified
+- **F8 = toggle** (กดเริ่ม / กดอีกครั้งหยุด) — ไม่ต้องกดค้างแล้ว
+  - Commit: `f8ac3bf feat: make F8 toggle start/stop instead of hold-to-talk`
+  - Owner smoke: กดแล้วปล่อยใช้งานได้แล้ว ✅
+- App currently left on `mode: hotkey` in `%LOCALAPPDATA%\PoodType\config.yaml`
+
+### Next: เตรียมตัวพูดไทย (wake-word) — ยังไม่จบ
+
+อย่า resume แบบ “เปิดโหมดแล้วจบ” — ปัญหาอยู่ที่ **Whisper ถอดวลีปลุกเพี้ยน** ไม่ใช่แค่ UI
+
+ข้อค้นพบจาก mic จริงของเจ้าของ:
+- พูด **「เฮ้ พุดไทป์」** แล้ว Faster Whisper มักได้ เช่น
+  - `โอเค พูดท้าย`
+  - `ภูทัย`
+  - `เทพุทธ`
+- เคยถอดถูก `เฮ้ พุดไทป์` ได้บ้าง แต่ไม่เสถียร
+- เสียงรบกวนเบา (~RMS 0.003) เคยท่วมคิว ASR จนวลีจริงไม่ทันถูกถอด → ยก `speech_rms` เป็น `0.01` แล้ว
+- Alias matching เพิ่มใน `phrases.py` แล้ว (รับ `โอเค พูดท้าย` / `ภูทัย` / …) แต่ **owner ยังไม่ยืนยันว่าไอคอนแดง/บีบตอน wake ใช้ได้**
+
+งานต่อที่แนะนำ (ลำดับ):
+1. Owner smoke โหมด Wake word อีกครั้งหลัง alias fix (`73cce98` / `4494829`)
+   - Tray → Mode: Wake word → พูดชัด 「เฮ้ พุดไทป์」 → ต้องแดง+บีบ
+2. ถ้ายังเพี้ยน: เก็บ `wake_listen_window text=...` จาก `%LOCALAPPDATA%\PoodType\poodtype.log` แล้วเติม alias
+3. พิจารณาเปลี่ยนวลีปลุกเป็นคำที่ Whisper คุ้นกว่า (ถ้า alias ไม่พอ) — ต้องคุยเจ้าของก่อน
+4. อย่าโหลดโมเดล medium สองตัว; wake window ใช้ `self.engine` + `initial_prompt=""` แล้ว
+
+Commits ที่เกี่ยว wake (ยังไม่ release):
+- `548ed8f` quiet ASR flood / shared engine
+- `4494829` Whisper mishearing aliases
+- `73cce98` กัน end phrase fuzzy เป็น start
+- `f8ac3bf` F8 toggle (แยกจาก wake)
+
+Automated: `pytest -q` **67 passed**
+
 ## Wake-word mode — 2026-07-26 (awaiting owner smoke)
 
 Implemented on `master` (not released yet):
@@ -9,7 +45,6 @@ Implemented on `master` (not released yet):
 - VAD + short Whisper windows for phrase detect; full utterance then paste
 - End path paste-only (`auto_send` forced false); strips start/end phrases
 - Shared `max_recording_seconds` default **300**; over-limit discards, no paste
-- Automated verify: `pytest -q` **61 passed**; `compileall -q src` OK
 - Spec: `docs/superpowers/specs/2026-07-26-wake-word-mode-design.md`
 - Plan: `docs/superpowers/plans/2026-07-26-wake-word-mode.md`
 
