@@ -130,6 +130,10 @@ def contains_phrase(text: str, phrase: str, *, tolerance: float = 0.8) -> bool:
             continue
         if all(token in haystack for token in tokens):
             return True
+        # Require the leading attention token so "ส่งได้ พุดไทป์" does not
+        # fuzzy-match "เฮ้ พุดไทป์" via the shared brand.
+        if tokens[0] not in haystack and tokens[0] not in compact_h:
+            continue
         if _best_window_ratio(haystack, needle) >= tolerance:
             return True
         if _best_window_ratio(compact_h, _compact(needle)) >= tolerance:
