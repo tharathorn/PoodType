@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 from enum import Enum
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from thai_voice_bridge.paste import PasteError, paste_text
 from thai_voice_bridge.phrases import strip_command_phrases
 from thai_voice_bridge.privacy import log_transcript, setup_logging, summarize_event
 from thai_voice_bridge.wake_listener import WakeWordListener
-from thai_voice_bridge.whisper_engine import WhisperEngine
+from thai_voice_bridge.whisper_engine import WhisperEngine, discover_cached_model
 
 
 class AppState(str, Enum):
@@ -45,6 +46,7 @@ class VoiceBridgeApp:
         self._work_generation = 0
         self._hotkey: HotkeyController | None = None
         self._wake_listener: WakeWordListener | None = None
+        self._wake_engine: WhisperEngine | None = None
         self._shutdown = threading.Event()
         self.on_state_change = None  # optional callable[[AppState], None]
 
@@ -162,6 +164,10 @@ class VoiceBridgeApp:
 
     def _start_wake_listener(self) -> None:
         self._stop_wake_listener()
+        try:
+            self._get_wake_engine().ensure_model()
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("wake_fast_model_preload_failed: %s", exc)
         self._wake_listener = WakeWordListener(
             self.config,
             feedback=self.feedback,
@@ -201,11 +207,37 @@ class VoiceBridgeApp:
                     return
             self._set_state(AppState.IDLE)
 
+    def _get_wake_engine(self) -> WhisperEngine:
+        """Faster/smaller model for wake/end phrase windows (not final paste)."""
+        if self._wake_engine is not None:
+            return self._wake_engine
+        wake_model = "small"
+        if discover_cached_model(wake_model, self.config.hf_cache_dir) is None:
+            wake_model = self.config.model
+            self.logger.info("wake_fast_model_missing fallback=%s", wake_model)
+        wake_cfg = replace(
+            self.config,
+            model=wake_model,
+            beam_size=1,
+            initial_prompt=(
+                f"{self.config.wake_word.start_phrase} "
+                f"{self.config.wake_word.end_phrase}"
+            ),
+        )
+        self._wake_engine = WhisperEngine(wake_cfg)
+        self.logger.info("wake_fast_model=%s beam_size=1", wake_model)
+        return self._wake_engine
+
     def _transcribe_window(self, audio: np.ndarray) -> str:
+        samples = np.asarray(audio, dtype=np.float32).reshape(-1)
+        # Keep the end of the utterance — wake/end phrases are spoken last.
+        max_samples = max(1, int(self.config.samplerate * 2.5))
+        if samples.size > max_samples:
+            samples = samples[-max_samples:]
         path = unique_temp_wav(prefix="poodtype_wake_win_")
         try:
-            write_wav(path, np.asarray(audio, dtype=np.float32), self.config.samplerate)
-            result = self.engine.transcribe_file(path)
+            write_wav(path, samples, self.config.samplerate)
+            result = self._get_wake_engine().transcribe_file(path)
             return (result.text or "").strip()
         finally:
             if not self.config.privacy.persist_audio:

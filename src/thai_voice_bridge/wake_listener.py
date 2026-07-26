@@ -247,16 +247,16 @@ class WakeWordListener:
     def _enqueue_asr(self, kind: Literal["listen", "end"], audio: np.ndarray) -> None:
         if audio.size == 0:
             return
-        # Prefer the newest window if ASR is backed up (CPU Whisper is slow).
+        # Never replace in-flight / queued audio — CPU Whisper is slow and
+        # dropping the wake-phrase window is worse than waiting for the next one.
         if self._asr_busy or not self._asr_queue.empty():
-            try:
-                while True:
-                    self._asr_queue.get_nowait()
-            except queue.Empty:
-                pass
-            if self._asr_busy:
-                logger.info("wake_asr_busy_drop kind=%s", kind)
-                # Still queue newest so it runs after current job finishes.
+            logger.info(
+                "wake_asr_skip kind=%s busy=%s queued=%s",
+                kind,
+                self._asr_busy,
+                self._asr_queue.qsize(),
+            )
+            return
         self._asr_queue.put((kind, audio))
 
     def feed_audio(self, frame: np.ndarray) -> None:
