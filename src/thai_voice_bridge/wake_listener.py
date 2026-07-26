@@ -70,6 +70,7 @@ class WakeWordListener:
         # Whisper must NOT run on the PortAudio callback thread — it blocks the mic.
         self._asr_queue: queue.Queue[AsrJob | None] = queue.Queue()
         self._asr_busy = False
+        self._pending_job: AsrJob | None = None
         self._worker_stop = threading.Event()
         self._worker: threading.Thread | None = None
         self._callback_frames = 0
@@ -165,6 +166,7 @@ class WakeWordListener:
             except queue.Empty:
                 break
         self._asr_busy = False
+        self._pending_job = None
 
     def _asr_loop(self) -> None:
         while not self._worker_stop.is_set():
@@ -185,6 +187,13 @@ class WakeWordListener:
                 logger.exception("wake_asr_job_failed kind=%s: %s", kind, exc)
             finally:
                 self._asr_busy = False
+                pending = self._pending_job
+                self._pending_job = None
+                if pending is not None and not self._worker_stop.is_set():
+                    try:
+                        self._asr_queue.put_nowait(pending)
+                    except queue.Full:
+                        self._pending_job = pending
 
     def _handle_listen_job(self, audio: np.ndarray) -> None:
         with self._lock:
@@ -258,17 +267,23 @@ class WakeWordListener:
     def _enqueue_asr(self, kind: Literal["listen", "end"], audio: np.ndarray) -> None:
         if audio.size == 0:
             return
-        # Never replace in-flight / queued audio — CPU Whisper is slow and
-        # dropping the wake-phrase window is worse than waiting for the next one.
+        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+        # Skip near-silent windows that only produce Whisper hallucinations.
+        if peak < self.config.wake_word.speech_rms:
+            logger.info("wake_asr_skip_quiet kind=%s peak=%.5f", kind, peak)
+            return
+        job: AsrJob = (kind, audio)
+        # If ASR is busy, keep only the newest window (the wake phrase is usually last).
         if self._asr_busy or not self._asr_queue.empty():
+            self._pending_job = job
             logger.info(
-                "wake_asr_skip kind=%s busy=%s queued=%s",
+                "wake_asr_pending kind=%s peak=%.5f samples=%d",
                 kind,
-                self._asr_busy,
-                self._asr_queue.qsize(),
+                peak,
+                int(audio.size),
             )
             return
-        self._asr_queue.put((kind, audio))
+        self._asr_queue.put(job)
 
     def feed_audio(self, frame: np.ndarray) -> None:
         samples = np.asarray(frame, dtype=np.float32).reshape(-1)
