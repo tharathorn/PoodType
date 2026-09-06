@@ -1,5 +1,22 @@
 # HANDOFF — PoodType
 
+## Offline Thai text normalization — 2026-09-06
+
+Added standalone offline normalizer (no network / no model I/O):
+
+- Module: `src/thai_voice_bridge/text_normalizer.py`
+- Docs: `docs/TEXT_NORMALIZATION.md`
+- Tests: extended `tests/test_phrases.py` (stutter, spoken numbers, บาท/สตางค์, punctuation, full `normalize_text` pipeline)
+- Entry: `normalize_text()` — stutter → currency → numbers → punctuation
+- Not yet wired into live paste path (`app.py` / `dictionary.py`); integrate when ready
+
+Verify:
+
+```powershell
+python -m pytest -q
+python -m compileall -q src
+```
+
 ## Session closeout — 2026-07-26 ~08:12 Asia/Bangkok
 
 ### Done / owner-verified
@@ -173,6 +190,8 @@ python -m thai_voice_bridge discover-cache
 - `src/thai_voice_bridge/app.py` — orchestration (hotkey + wake-word modes)
 - `src/thai_voice_bridge/wake_listener.py` — VAD + phrase detect loop
 - `src/thai_voice_bridge/phrases.py` — wake/end phrase match + strip
+- `src/thai_voice_bridge/text_normalizer.py` — offline Thai number/currency/punctuation/stutter cleanup
+- `docs/TEXT_NORMALIZATION.md` — normalizer API + examples
 - `src/thai_voice_bridge/whisper_engine.py` — Faster Whisper + cache discovery
 - `src/thai_voice_bridge/paste.py` — clipboard restore
 - `src/thai_voice_bridge/tray.py` — system tray (mode switch)
