@@ -121,8 +121,11 @@ User config อยู่นอก Git (`%LOCALAPPDATA%\PoodType\`) ยกเว�
 
 ```powershell
 python -m pytest -q
+python -m pytest -q tests/test_phrases.py
 python -m compileall -q src
 ```
+
+Phrase matching helpers in `thai_voice_bridge.phrases` are offline-safe (no microphone): token-stream normalization, trailing streaming windows, and low-latency wake/end checks. See `docs/HANDOFF.md`.
 
 ## สร้าง Release
 
