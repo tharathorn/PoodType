@@ -6,6 +6,7 @@ import re
 
 from thai_voice_bridge.config import AppConfig, AppProfile, Replacement
 from thai_voice_bridge.foreground import ForegroundInfo
+from thai_voice_bridge.normalizer import normalize_spoken_text
 
 
 KNOWN_BAD_TRANSCRIPTS = frozenset(
@@ -47,7 +48,8 @@ def normalize_transcript(
     profile = select_profile(config, foreground)
     if profile:
         replacements.extend(profile.extra_replacements)
-    return apply_replacements(transcript, replacements)
+    text = apply_replacements(transcript, replacements)
+    return normalize_spoken_text(text)
 
 
 def is_bad_transcript(transcript: str, *, initial_prompt: str | None = None) -> bool:

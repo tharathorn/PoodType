@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from thai_voice_bridge.normalizer import normalize_spoken_text
 from thai_voice_bridge.phrases import contains_phrase, strip_command_phrases
 
 START = "เฮ้ พุดไทป์"
@@ -37,4 +38,27 @@ def test_strips_start_and_end_for_paste_payload():
             text, start_phrase=START, end_phrase=END, tolerance=0.8
         )
         == "พรุ่งนี้ประชุม 10 โมง"
+    )
+
+
+def test_phrase_strip_then_spoken_numeral_normalize():
+    text = "เฮ้ พุดไทป์ จ่ายสิบบาท นัดสิบโมง ส่งได้ พุดไทป์"
+    stripped = strip_command_phrases(
+        text, start_phrase=START, end_phrase=END, tolerance=0.8
+    )
+    assert stripped == "จ่ายสิบบาท นัดสิบโมง"
+    assert normalize_spoken_text(stripped) == "จ่าย 10 บาท นัด 10:00 โมง"
+
+
+def test_wake_payload_normalizes_phone_and_currency():
+    text = (
+        "เฮ้ พุดไทป์ โอนหนึ่งร้อยบาท ไปเบอร์ศูนย์แปดเก้าหนึ่งสองสามสี่ห้าหกเจ็ด "
+        "ส่งได้ พุดไทป์"
+    )
+    stripped = strip_command_phrases(
+        text, start_phrase=START, end_phrase=END, tolerance=0.8
+    )
+    assert (
+        normalize_spoken_text(stripped)
+        == "โอน 100 บาท ไปเบอร์ 0891234567"
     )
