@@ -94,6 +94,10 @@ python -m thai_voice_bridge run
 3. พูด **ส่งได้ พุดไทป์** → ได้ยินเสียง stop → ถอดเสียงแล้ว paste (ไม่กด Enter; ตัดวลีเริ่ม/จบออก)
 4. สลับกลับ **Mode: Hotkey (F8)** ได้จาก tray เดียวกัน
 
+วลีเริ่ม/จบรองรับ phonetic alias และ homophone ที่ Faster Whisper มักถอดเพี้ยน
+(เช่น `โอเค พูดท้าย`, `ภูทัย`, `เฮ้ พุทธไทย`, `ส่งได พุดไทป์`) พร้อม normalize ช่องว่าง/ตัวพิมพ์
+และกัน start กับ end ชนกัน — ดู `src/thai_voice_bridge/phrases.py`
+
 ## Config สำคัญ
 
 ดู `config.example.yaml`

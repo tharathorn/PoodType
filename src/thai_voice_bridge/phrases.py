@@ -7,7 +7,9 @@ from difflib import SequenceMatcher
 
 _WHITESPACE_RE = re.compile(r"\s+")
 
-# Observed Faster-Whisper mishearings of the coined brand + attention word.
+# Observed Faster-Whisper mishearings + common Thai spoken / homophone variants.
+# Brand-only tokens stay in _BRAND_COMPACT (not here) so they cannot substring-
+# match inside end phrases like "ส่งได้ พูดท้าย".
 _START_ALIASES = (
     "เฮ้ พุดไทป์",
     "เฮ พุดไทป์",
@@ -16,43 +18,81 @@ _START_ALIASES = (
     "เฮ้ พุดไทย",
     "เฮ พุดไทย",
     "เฮ้ พุทไทย",
+    "เฮ้ พูดไทป์",
+    "เฮ พูดไทป์",
+    "เฮ้ พุทธไทย",
+    "เฮ พุทธไทย",
+    "เฮ้ พุทธไทป์",
     "เฮ้ พูดท้าย",
     "เฮ พูดท้าย",
+    "เฮ้ พูไทป์",
+    "เฮ้ พุดไทพ์",
+    "เอ้ พุดไทป์",
+    "เอ้ พุทไทป์",
+    "เฮ้ย พุดไทป์",
+    "เฮ้ย พุทไทป์",
     "โอเค พูดท้าย",
     "โอเค พุดไทป์",
     "โอเค พุทไทป์",
     "โอเค พูดไทย",
-    "เทพุทธ",
-    "ภูทัย",
-    "พูดท้าย",
+    "โอเค พุดไทย",
     "hey poodtype",
+    "hey pood type",
     "hey put type",
+    "hey phut thai",
+    "hey putthai",
+    "hey poodthai",
     "ok poodtype",
+    "okay poodtype",
+    "okay put type",
+    "hi poodtype",
 )
 _END_ALIASES = (
     "ส่งได้ พุดไทป์",
     "ส่งได้ พุทไทป์",
     "ส่งได้ พุดไทย",
     "ส่งได้ พุทไทย",
+    "ส่งได้ พูดไทป์",
+    "ส่งได้ พุทธไทย",
+    "ส่งได้ พุทธไทป์",
     "ส่งได้ พูดท้าย",
     "ส่งได้ พูดไทย",
     "ส่งได้ ภูทัย",
     "ส่งได้ พุดไทบ์",
+    "ส่งได้ พุดไทพ์",
+    "ส่งได้ พูไทป์",
+    "ส่งได พุดไทป์",
+    "ส่งได พุทไทป์",
+    "สงได้ พุดไทป์",
+    "สงได้ พุทไทป์",
+    "ส่งได้ poodtype",
+    "ส่งได้ puttype",
+    "song dai poodtype",
+    "songdai poodtype",
 )
 
-_ATTENTION_TOKENS = ("เฮ้", "เฮ", "โอเค", "hey", "ok", "okay")
+_ATTENTION_TOKENS = ("เฮ้", "เฮ", "เฮ้ย", "เอ้", "โอเค", "hey", "hi", "ok", "okay")
+_END_MARKERS = ("ส่งได้", "ส่งได", "สงได้", "song dai", "songdai")
 _BRAND_COMPACT = (
     "พุดไทป์",
     "พุทไทป์",
     "พุดไทย",
     "พุทไทย",
+    "พูดไทป์",
+    "พุทธไทย",
+    "พุทธไทป์",
     "พูดท้าย",
     "พูดไทย",
     "ภูทัย",
     "เทพุทธ",
     "พูไทป์",
+    "พุดไทพ์",
+    "พุดไทบ์",
     "poodtype",
+    "poodthai",
     "puttype",
+    "putthai",
+    "phutthai",
 )
 
 
@@ -82,9 +122,17 @@ def _best_window_ratio(haystack: str, needle: str) -> float:
     return best
 
 
+def _has_end_marker(text: str) -> bool:
+    haystack = normalize_phrase_text(text)
+    compact = _compact(haystack)
+    for marker in _END_MARKERS:
+        if marker in haystack or _compact(marker) in compact:
+            return True
+    return False
+
+
 def _phrase_candidates(phrase: str) -> tuple[str, ...]:
-    needle = normalize_phrase_text(phrase)
-    if needle.startswith("ส่งได้") or "ส่งได้" in needle:
+    if _has_end_marker(phrase):
         extras = _END_ALIASES
     else:
         extras = _START_ALIASES
@@ -111,8 +159,7 @@ def _has_attention(haystack: str) -> bool:
 
 
 def _is_start_phrase(phrase: str) -> bool:
-    needle = normalize_phrase_text(phrase)
-    return not (needle.startswith("ส่งได้") or "ส่งได้" in needle)
+    return not _has_end_marker(phrase)
 
 
 def contains_phrase(text: str, phrase: str, *, tolerance: float = 0.8) -> bool:
@@ -120,6 +167,7 @@ def contains_phrase(text: str, phrase: str, *, tolerance: float = 0.8) -> bool:
     if not haystack:
         return False
     compact_h = _compact(haystack)
+    looking_for_start = _is_start_phrase(phrase)
     for needle in _phrase_candidates(phrase):
         if needle in haystack or _compact(needle) in compact_h:
             return True
@@ -130,8 +178,8 @@ def contains_phrase(text: str, phrase: str, *, tolerance: float = 0.8) -> bool:
             continue
         if all(token in haystack for token in tokens):
             return True
-        # Require the leading attention token so "ส่งได้ พุดไทป์" does not
-        # fuzzy-match "เฮ้ พุดไทป์" via the shared brand.
+        # Require the leading attention/end token so shared brand fragments
+        # do not cross-match start vs end aliases.
         if tokens[0] not in haystack and tokens[0] not in compact_h:
             continue
         if _best_window_ratio(haystack, needle) >= tolerance:
@@ -140,16 +188,16 @@ def contains_phrase(text: str, phrase: str, *, tolerance: float = 0.8) -> bool:
             return True
 
     # Live Whisper often maps "เฮ้ พุดไทป์" → "โอเค พูดท้าย" / "ภูทัย".
-    if _is_start_phrase(phrase) and _has_brand_sound(haystack):
+    if looking_for_start and _has_brand_sound(haystack):
         # End phrase also contains the brand — never treat it as a start.
-        if "ส่งได้" in haystack:
+        if _has_end_marker(haystack):
             return False
         if _has_attention(haystack):
             return True
         # Short window that is mostly the brand alone.
         if len(compact_h) <= 12:
             return True
-    if (not _is_start_phrase(phrase)) and ("ส่งได้" in haystack) and _has_brand_sound(
+    if (not looking_for_start) and _has_end_marker(haystack) and _has_brand_sound(
         haystack
     ):
         return True
