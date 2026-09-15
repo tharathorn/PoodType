@@ -8,12 +8,12 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
-import sounddevice as sd
 
 from thai_voice_bridge.audio import (
+    require_sounddevice,
     resolve_input_device,
     unique_temp_wav,
     write_wav,
@@ -24,6 +24,9 @@ from thai_voice_bridge.phrases import contains_phrase
 from thai_voice_bridge.vad import EnergyVad
 
 logger = logging.getLogger("thai_voice_bridge.wake")
+
+Phase = Literal["listening", "recording"]
+AsrJob = tuple[Literal["listen", "end"], np.ndarray]
 
 
 def _concat_audio(chunks: list[np.ndarray]) -> np.ndarray:
@@ -74,7 +77,7 @@ class WakeWordListener:
         self.phase: Phase = "listening"
         self._enabled = False
         self._lock = threading.Lock()
-        self._stream: sd.InputStream | None = None
+        self._stream: Any = None
         self._vad = EnergyVad(
             samplerate=config.samplerate,
             silence_seconds=config.wake_word.vad_silence_seconds,
@@ -86,17 +89,25 @@ class WakeWordListener:
         self._max_samples = max(1, int(config.samplerate * config.max_recording_seconds))
         self._device = resolve_input_device(config.microphone)
         # Whisper must NOT run on the PortAudio callback thread — it blocks the mic.
+        # Queue is per worker generation so a stale stop-sentinel cannot kill a new worker.
         self._asr_queue: queue.Queue[AsrJob | None] = queue.Queue()
         self._asr_busy = False
         self._pending_job: AsrJob | None = None
         self._worker_stop = threading.Event()
         self._worker: threading.Thread | None = None
+        # Serialize ensure/stop/join/clear without holding _lock during join.
+        self._worker_lifecycle = threading.Lock()
+        self._join_timeout_seconds = 2.0
         self._callback_frames = 0
         self._peak_rms = 0.0
         self._last_audio_log = 0.0
         self._speech_logged = False
 
     def enable(self) -> None:
+        # Establish PortAudio readiness before ASR worker / mic so failures
+        # never leave a half-started listener.
+        if self.open_mic:
+            require_sounddevice()
         with self._lock:
             self._enabled = True
             self.phase = "listening"
@@ -105,9 +116,13 @@ class WakeWordListener:
         self._callback_frames = 0
         self._peak_rms = 0.0
         self._last_audio_log = 0.0
-        self._ensure_worker()
-        if self.open_mic:
-            self.start()
+        try:
+            self._ensure_worker()
+            if self.open_mic:
+                self.start()
+        except Exception:
+            self.disable()
+            raise
         logger.info(
             "wake_listener_enabled open_mic=%s speech_rms=%.5f silence=%.2fs",
             self.open_mic,
@@ -120,32 +135,70 @@ class WakeWordListener:
             self._enabled = False
             self.phase = "listening"
             self._reset_buffers()
-        self.stop()
-        self._stop_worker()
+        errors: list[str] = []
+        try:
+            try:
+                self.stop()
+            except Exception as exc:  # noqa: BLE001 — still stop worker
+                errors.append(f"stream cleanup: {exc}")
+        finally:
+            try:
+                self._stop_worker()
+            except Exception as exc:  # noqa: BLE001 — report combined failures
+                errors.append(f"worker cleanup: {exc}")
+        if errors:
+            raise RuntimeError("; ".join(errors))
 
     def start(self) -> None:
         if not self.open_mic:
             return
         if self._stream is not None:
             return
-        self._stream = sd.InputStream(
+        backend = require_sounddevice()
+        stream = backend.InputStream(
             samplerate=self.config.samplerate,
             channels=1,
             dtype="float32",
             callback=self._stream_callback,
             device=self._device,
         )
-        self._stream.start()
+        try:
+            stream.start()
+        except Exception as start_exc:
+            close_exc: BaseException | None = None
+            try:
+                stream.close()
+            except BaseException as exc:  # noqa: BLE001 — preserve cleared state
+                close_exc = exc
+            self._stream = None
+            if close_exc is not None:
+                raise RuntimeError(
+                    f"InputStream.start failed: {start_exc}; "
+                    f"cleanup close failed: {close_exc}"
+                ) from start_exc
+            raise
+        self._stream = stream
         logger.info("wake_mic_started device=%s", self._device)
 
     def stop(self) -> None:
         if self._stream is None:
             return
+        stream = self._stream
+        errors: list[BaseException] = []
         try:
-            self._stream.stop()
+            stream.stop()
+        except BaseException as exc:  # noqa: BLE001 — still attempt close/clear
+            errors.append(exc)
+        try:
+            stream.close()
+        except BaseException as exc:  # noqa: BLE001 — still clear reference
+            errors.append(exc)
         finally:
-            self._stream.close()
             self._stream = None
+        if errors:
+            raise RuntimeError(
+                "; ".join(f"{type(exc).__name__}: {exc}" for exc in errors)
+            )
 
     def wait_asr_idle(self, timeout: float = 2.0) -> bool:
         """Block until ASR queue is drained (for tests)."""
@@ -157,39 +210,65 @@ class WakeWordListener:
         return False
 
     def _ensure_worker(self) -> None:
-        if self._worker is not None and self._worker.is_alive():
-            return
-        self._worker_stop.clear()
-        self._worker = threading.Thread(
-            target=self._asr_loop,
-            name="poodtype-wake-asr",
-            daemon=True,
-        )
-        self._worker.start()
+        with self._worker_lifecycle:
+            if self._worker is not None and self._worker.is_alive():
+                if self._worker_stop.is_set():
+                    raise RuntimeError(
+                        "Previous ASR worker still alive after stop; "
+                        "refusing overlapping workers"
+                    )
+                return
+            # Fresh per-generation stop event + queue so a prior stop sentinel
+            # left after a join timeout cannot immediately kill the new worker.
+            stop_event = threading.Event()
+            asr_queue: queue.Queue[AsrJob | None] = queue.Queue()
+            self._worker_stop = stop_event
+            self._asr_queue = asr_queue
+            self._asr_busy = False
+            self._pending_job = None
+            self._worker = threading.Thread(
+                target=self._asr_loop,
+                args=(stop_event, asr_queue),
+                name="poodtype-wake-asr",
+                daemon=True,
+            )
+            self._worker.start()
 
     def _stop_worker(self) -> None:
-        self._worker_stop.set()
-        try:
-            self._asr_queue.put_nowait(None)
-        except queue.Full:
-            pass
-        worker = self._worker
-        self._worker = None
-        if worker is not None and worker.is_alive():
-            worker.join(timeout=2.0)
-        # Drop any leftover jobs
-        while True:
+        with self._worker_lifecycle:
+            self._worker_stop.set()
+            asr_queue = self._asr_queue
             try:
-                self._asr_queue.get_nowait()
-            except queue.Empty:
-                break
-        self._asr_busy = False
-        self._pending_job = None
+                asr_queue.put_nowait(None)
+            except queue.Full:
+                pass
+            worker = self._worker
+            if worker is not None and worker.is_alive():
+                # Join without holding _lock (ASR callbacks may need it).
+                worker.join(timeout=self._join_timeout_seconds)
+                if worker.is_alive():
+                    # Keep the reference — do not start another worker on top.
+                    raise RuntimeError(
+                        "ASR worker join timed out; worker still alive"
+                    )
+            self._worker = None
+            # Drop any leftover jobs from this generation's queue.
+            while True:
+                try:
+                    asr_queue.get_nowait()
+                except queue.Empty:
+                    break
+            self._asr_busy = False
+            self._pending_job = None
 
-    def _asr_loop(self) -> None:
-        while not self._worker_stop.is_set():
+    def _asr_loop(
+        self,
+        stop_event: threading.Event,
+        asr_queue: queue.Queue[AsrJob | None],
+    ) -> None:
+        while not stop_event.is_set():
             try:
-                job = self._asr_queue.get(timeout=0.2)
+                job = asr_queue.get(timeout=0.2)
             except queue.Empty:
                 continue
             if job is None:
@@ -207,9 +286,9 @@ class WakeWordListener:
                 self._asr_busy = False
                 pending = self._pending_job
                 self._pending_job = None
-                if pending is not None and not self._worker_stop.is_set():
+                if pending is not None and not stop_event.is_set():
                     try:
-                        self._asr_queue.put_nowait(pending)
+                        asr_queue.put_nowait(pending)
                     except queue.Full:
                         self._pending_job = pending
 

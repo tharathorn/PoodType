@@ -1,5 +1,41 @@
 # HANDOFF — PoodType
 
+## Session closeout — 2026-08-29 Asia/Bangkok (review-feedback slice)
+
+### Safety / reliability (this worktree)
+- Optional `sounddevice` import + `require_sounddevice()` fail-closed for real recording
+- Unicode script-sanity gate (Thai mode): raw transcript then normalized; Bengali/etc fail closed
+- `allowed_punctuation` via YAML; config rejects non P*/S* categories
+- Paste: HWND re-check before Ctrl+V and before Enter; `auto_send` requires `expected_hwnd`
+- SendInput partial injection fail-closed with key-up cleanup evidence (no Ctrl+V fallback)
+- Wake enable/set_mode: PortAudio readiness before tearing down hotkey; rollback on failure
+- Wake ASR worker: per-generation stop event **and queue**; keep worker ref until join succeeds;
+  join timeout fail-closed; refuse overlapping workers; `_worker_lifecycle` lock around
+  ensure/stop/join/clear (does not hold `_lock` during join)
+- `Recorder.start` / wake mic start: close+clear locally-created stream if `InputStream.start`
+  raises; when close also fails, raise bounded combined start+cleanup error (state still cleared)
+- `disable`/`_close_stream`: try/finally clears refs even when stop/close raise; combined bounded errors
+
+### Verification (sanitized)
+- `python -m pytest -q` → **133 passed**
+- `python -m compileall -q src` → **OK** (exit 0; registered `compile_check` gate)
+
+### Still open (owner)
+- Wake-word owner smoke after alias fixes (`73cce98` / `4494829`)
+- If paste still flaky in a specific app: set `paste_hold_seconds: 0.5` in user config
+
+## Session closeout — 2026-08-29 Asia/Bangkok
+
+### Reliability slice (this worktree)
+- Collapse Whisper-inserted spaces between Thai letters before dictionary replace
+  (`dictionary.collapse_thai_letter_spaces`) so `ส ว ั ส ด ี` → `สวัสดี`
+- Paste path: prefer Win32 `SendInput` for Ctrl+V / Enter; hold clipboard longer
+  before restore (auto ~0.35s for Cursor/Codex/Electron, else ~0.25s)
+- Config: optional `paste_hold_seconds` (null = auto by process name)
+- Codex profile also matches `codex.exe`
+
+Automated: run `pytest -q` after pull (now **133 passed** with safety slice above).
+
 ## Session closeout — 2026-07-26 ~08:12 Asia/Bangkok
 
 ### Done / owner-verified

@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from thai_voice_bridge.app import AppState, VoiceBridgeApp
+from thai_voice_bridge.audio import AudioError
 from thai_voice_bridge.config import config_from_dict
 from thai_voice_bridge.foreground import ForegroundInfo
 from thai_voice_bridge.whisper_engine import TranscriptResult
@@ -30,13 +33,51 @@ def test_set_mode_to_wake_word_disables_hotkey_and_cancels_recording():
     app.recorder.recording = True
     app.recorder.cancel = MagicMock()  # type: ignore[method-assign]
 
-    with patch.object(VoiceBridgeApp, "_start_wake_listener") as start_wake:
+    with patch("thai_voice_bridge.app.require_sounddevice"), patch.object(
+        VoiceBridgeApp, "_start_wake_listener"
+    ) as start_wake:
         app.set_mode("wake_word")
 
     hotkey.disable.assert_called()
     app.recorder.cancel.assert_called_once()
     start_wake.assert_called_once()
     assert app.config.mode == "wake_word"
+
+
+def test_set_mode_wake_word_fails_closed_before_disabling_hotkey():
+    """PortAudio must be ready before tearing down hotkey mode."""
+    app = _wake_app(mode="hotkey")
+    hotkey = MagicMock()
+    app._hotkey = hotkey
+
+    with patch(
+        "thai_voice_bridge.app.require_sounddevice",
+        side_effect=AudioError("PortAudio unavailable"),
+    ), patch.object(VoiceBridgeApp, "_start_wake_listener") as start_wake:
+        with pytest.raises(AudioError, match="PortAudio"):
+            app.set_mode("wake_word")
+
+    hotkey.disable.assert_not_called()
+    start_wake.assert_not_called()
+    assert app.config.mode == "hotkey"
+
+
+def test_start_input_wake_restores_hotkey_when_listener_enable_fails():
+    app = _wake_app(mode="wake_word")
+    hotkey = MagicMock()
+    app._hotkey = hotkey
+
+    with patch("thai_voice_bridge.app.require_sounddevice"), patch.object(
+        VoiceBridgeApp,
+        "_start_wake_listener",
+        side_effect=AudioError("mic open failed"),
+    ):
+        with pytest.raises(AudioError, match="mic open"):
+            app.start_input()
+
+    hotkey.disable.assert_called()
+    hotkey.enable.assert_called()
+    assert app._wake_listener is None
 
 
 def test_wake_utterance_strips_phrases_before_paste(tmp_path: Path):

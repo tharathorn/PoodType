@@ -55,6 +55,28 @@ def test_is_bad_transcript_empty_and_prompt_echo():
     assert not is_bad_transcript("สวัสดี Codex")
 
 
+def test_collapse_thai_letter_spaces_keeps_latin_boundaries():
+    from thai_voice_bridge.dictionary import collapse_thai_letter_spaces
+
+    assert collapse_thai_letter_spaces("ส ว ั ส ด ี") == "สวัสดี"
+    assert collapse_thai_letter_spaces("ส ว ั ส ด ี Codex") == "สวัสดี Codex"
+    assert collapse_thai_letter_spaces("hello world") == "hello world"
+    # Normal Thai word spacing must be preserved for phrase stripping.
+    assert collapse_thai_letter_spaces("ใช้ โคเด็ก") == "ใช้ โคเด็ก"
+    assert (
+        collapse_thai_letter_spaces("เฮ้ พุดไทป์ พรุ่งนี้ประชุม 10 โมง")
+        == "เฮ้ พุดไทป์ พรุ่งนี้ประชุม 10 โมง"
+    )
+
+
+def test_normalize_collapses_thai_spaces_before_replacements():
+    cfg = AppConfig(
+        replacements=[Replacement(pattern=r"โคเด็ก", replace="Codex")],
+    )
+    assert normalize_transcript("ใ ช้ โ ค เ ด็ ก", cfg) == "ใช้Codex"
+    assert normalize_transcript("ใช้ โคเด็ก", cfg) == "ใช้ Codex"
+
+
 def test_example_dictionary_covers_required_terms():
     from pathlib import Path
 

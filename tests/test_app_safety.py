@@ -105,3 +105,19 @@ def test_unknown_foreground_aborts_paste(tmp_path: Path):
         app._transcribe_and_paste(None, app._work_generation)
 
     paste.assert_not_called()
+
+
+def test_paste_receives_expected_hwnd_for_autosend_safety(tmp_path: Path):
+    app = _app()
+    app.config.auto_send = True
+    _successful_pipeline(app, tmp_path)
+    target = _target(99)
+
+    with patch("thai_voice_bridge.app.get_foreground_info", return_value=target), patch(
+        "thai_voice_bridge.app.paste_text"
+    ) as paste:
+        app._transcribe_and_paste(target, app._work_generation)
+
+    paste.assert_called_once()
+    assert paste.call_args.kwargs["expected_hwnd"] == 99
+    assert paste.call_args.kwargs["auto_send"] is True

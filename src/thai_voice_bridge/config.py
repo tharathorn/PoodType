@@ -5,14 +5,21 @@ from __future__ import annotations
 import copy
 import os
 import sys
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from thai_voice_bridge.script_sanity import DEFAULT_ALLOWED_PUNCTUATION
+
 ENFORCED_LANGUAGE = "th"
 ENFORCED_TASK = "transcribe"
+
+# Punctuation allowlist may only contain Unicode punctuation (P*) or symbols (S*).
+_ALLOWED_PUNCT_CATEGORY_PREFIXES = frozenset({"P", "S"})
+
 
 @dataclass
 class Replacement:
@@ -69,12 +76,19 @@ class AppConfig:
     max_recording_seconds: float = 300.0
     auto_send: bool = False
     min_hold_seconds: float = 0.3
+    # Seconds to keep transcript on clipboard after Ctrl+V before restore.
+    # Electron apps (Cursor/Codex) need longer; None = auto by process name.
+    paste_hold_seconds: float | None = None
     min_confidence: float = 0.35
     beam_size: int = 5
     initial_prompt: str = (
         "Codex, Cursor, Code Coach, Dev Orchestrator, Full Content, "
         "HyperFrames, HeyGen, Python, PowerShell, GitHub, API, MCP, "
         "Windows, Thai, English."
+    )
+    # Thai-mode script gate punctuation allowlist (safe default when unset).
+    allowed_punctuation: frozenset[str] = field(
+        default_factory=lambda: DEFAULT_ALLOWED_PUNCTUATION
     )
     hf_cache_dir: Path | None = None
     allow_model_download: bool = False
@@ -173,6 +187,33 @@ def _resolve_hf_cache(raw: Any) -> Path | None:
     return None
 
 
+def _validate_punctuation_char(ch: str) -> None:
+    if len(ch) != 1:
+        raise ConfigError(
+            "allowed_punctuation list entries must be single characters"
+        )
+    category = unicodedata.category(ch)
+    if category[:1] not in _ALLOWED_PUNCT_CATEGORY_PREFIXES:
+        raise ConfigError(
+            "allowed_punctuation permits only Unicode punctuation/symbol "
+            f"categories (P*/S*); rejected {ch!r} ({category})"
+        )
+
+
+def _parse_allowed_punctuation(raw: Any) -> frozenset[str]:
+    """YAML null/omit → safe default; string → exact punctuation allowlist."""
+    if raw is None:
+        return DEFAULT_ALLOWED_PUNCTUATION
+    if isinstance(raw, str):
+        chars = list(raw)
+    elif isinstance(raw, (list, tuple)):
+        chars = [str(item) for item in raw]
+    else:
+        raise ConfigError("allowed_punctuation must be a string, list of chars, or null")
+    for ch in chars:
+        _validate_punctuation_char(ch)
+    return frozenset(chars)
+
 def validate_language_and_task(language: str, task: str) -> tuple[str, str]:
     lang = (language or "").strip().lower()
     t = (task or "").strip().lower()
@@ -254,9 +295,17 @@ def config_from_dict(data: dict[str, Any], source_path: Path | None = None) -> A
         max_recording_seconds=float(data.get("max_recording_seconds", 300.0)),
         auto_send=bool(data.get("auto_send", False)),
         min_hold_seconds=float(data.get("min_hold_seconds", 0.3)),
+        paste_hold_seconds=(
+            None
+            if data.get("paste_hold_seconds", None) is None
+            else float(data.get("paste_hold_seconds"))
+        ),
         min_confidence=float(data.get("min_confidence", 0.35)),
         beam_size=int(data.get("beam_size", 5)),
         initial_prompt=str(data.get("initial_prompt") or AppConfig.initial_prompt),
+        allowed_punctuation=_parse_allowed_punctuation(
+            data.get("allowed_punctuation", None)
+        ),
         hf_cache_dir=_resolve_hf_cache(data.get("hf_cache_dir")),
         allow_model_download=bool(data.get("allow_model_download", False)),
         privacy=PrivacyConfig(
@@ -282,6 +331,8 @@ def config_from_dict(data: dict[str, Any], source_path: Path | None = None) -> A
         raise ConfigError("min_confidence must be between 0 and 1")
     if cfg.max_recording_seconds <= 0:
         raise ConfigError("max_recording_seconds must be greater than 0")
+    if cfg.paste_hold_seconds is not None and cfg.paste_hold_seconds < 0:
+        raise ConfigError("paste_hold_seconds must be >= 0")
     return cfg
 
 

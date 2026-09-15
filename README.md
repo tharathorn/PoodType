@@ -15,7 +15,8 @@
 - Hands-free wake-word mode (สลับจาก tray): พูด **เฮ้ พุดไทป์** เริ่มอัด → **ส่งได้ พุดไทป์** หยุดแล้ว paste
 - วางข้อความด้วย Ctrl+V — **ไม่กด Enter** โดยค่าเริ่มต้น (`auto_send: false`; wake-word บังคับ paste-only)
 - Restore clipboard เดิมหลังวาง
-- ยกเลิก paste ถ้าหน้าต่าง foreground เปลี่ยนระหว่างถอดเสียง
+- ยกเลิก paste ถ้าหน้าต่าง foreground เปลี่ยนระหว่างถอดเสียง หรือก่อน Ctrl+V / Enter
+- ปฏิเสธ transcript ที่ปนสคริปต์แปลก (เช่น ไทย+เบงกาลี) — ไม่ paste / ไม่ Enter; แสดง retry prompt
 - จำกัดการอัดค่าเริ่มต้น **300 วินาที (5 นาที)** ทั้ง F8 และ wake-word; เกินแล้วทิ้งเสียงและไม่ paste
 - Tray icon: Pause/Resume, สลับ Mode Hotkey/Wake word, Settings, Exit + สถานะสี
 - Single-instance lock
@@ -109,6 +110,7 @@ python -m thai_voice_bridge run
 | `model` | `medium` | |
 | `device` | `cpu` | `cuda` เป็น optional |
 | `auto_send` | `false` | |
+| `paste_hold_seconds` | `null` | หน่วงก่อน restore clipboard; `null` = อัตโนมัติ (นานขึ้นบน Cursor/Codex) |
 | `min_confidence` | `0.35` | ต่ำกว่านี้ไม่ paste |
 | `microphone` | `null` | index หรือชื่อย่อย |
 | `max_recording_seconds` | `300` | hard limit ทั้งสองโหมด; เกินแล้วไม่สร้าง WAV/paste |

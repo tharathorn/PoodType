@@ -48,8 +48,16 @@ def test_config_from_dict_defaults(tmp_path: Path):
     assert cfg.compute_type == "int8"
     assert cfg.auto_send is False
     assert cfg.max_recording_seconds == 300.0
+    assert cfg.paste_hold_seconds is None
     assert cfg.language == "th"
     assert cfg.task == "transcribe"
+
+
+def test_paste_hold_seconds_rejects_negative():
+    with pytest.raises(ConfigError):
+        config_from_dict(
+            {"language": "th", "task": "transcribe", "paste_hold_seconds": -1}
+        )
 
 
 def test_load_config_from_example():
@@ -95,6 +103,44 @@ def test_config_defaults_include_wake_word_mode_and_five_minute_limit():
     assert cfg.wake_word.start_phrase == "เฮ้ พุดไทป์"
     assert cfg.wake_word.end_phrase == "ส่งได้ พุดไทป์"
     assert cfg.auto_send is False
+    assert "!" in cfg.allowed_punctuation
+    assert "." in cfg.allowed_punctuation
+
+
+def test_allowed_punctuation_from_yaml_overrides_default():
+    cfg = config_from_dict(
+        {"language": "th", "task": "transcribe", "allowed_punctuation": ".!"}
+    )
+    assert cfg.allowed_punctuation == frozenset(".!")
+
+
+def test_allowed_punctuation_null_keeps_safe_default():
+    from thai_voice_bridge.script_sanity import DEFAULT_ALLOWED_PUNCTUATION
+
+    cfg = config_from_dict(
+        {"language": "th", "task": "transcribe", "allowed_punctuation": None}
+    )
+    assert cfg.allowed_punctuation == DEFAULT_ALLOWED_PUNCTUATION
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "ก",  # Thai letter
+        "a",  # Latin letter
+        "বা",  # Bengali letters
+        "Ж",  # Cyrillic letter
+        "1",  # digit
+        "\u0301",  # combining mark
+        "\x00",  # control
+        "\u200b",  # format
+    ],
+)
+def test_allowed_punctuation_rejects_non_punctuation_categories(bad: str):
+    with pytest.raises(ConfigError, match="punctuation|symbol|category"):
+        config_from_dict(
+            {"language": "th", "task": "transcribe", "allowed_punctuation": bad}
+        )
 
 
 def test_mode_must_be_hotkey_or_wake_word():

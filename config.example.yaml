@@ -14,8 +14,17 @@ samplerate: 16000
 max_recording_seconds: 300  # hard safety limit; over-limit audio is discarded
 auto_send: false      # if true, press Enter after paste
 min_hold_seconds: 0.3
+# Keep transcript on clipboard after Ctrl+V before restore.
+# null = auto (longer for Cursor/Codex/Electron); set 0.35+ if paste is flaky.
+paste_hold_seconds: null
 min_confidence: 0.35  # average segment confidence; below = no paste
 beam_size: 5
+# Thai-mode Unicode script gate: punctuation allowlist.
+# null = built-in safe default (ASCII + common editor/currency marks).
+# String or list of single chars replaces the default allowlist entirely.
+# Only Unicode punctuation (P*) and symbol (S*) categories are accepted;
+# letters, marks, digits, and controls are rejected at config load.
+allowed_punctuation: null
 initial_prompt: >-
   Codex, Cursor, Code Coach, Dev Orchestrator, Full Content, HyperFrames,
   HeyGen, Python, PowerShell, GitHub, API, MCP, Windows, Thai, English.
@@ -95,7 +104,8 @@ profiles:
     match_process: ["Code Coach", "code-coach", "CodeCoach"]
     extra_replacements: []
   codex:
-    match_process: ["Codex", "codex"]
+    # Title match covers Windows Terminal / PowerShell hosting `codex`.
+    match_process: ["Codex", "codex", "codex.exe"]
     extra_replacements:
       - pattern: '\b[Cc]oding\b'
         replace: Codex

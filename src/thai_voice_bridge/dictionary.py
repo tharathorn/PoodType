@@ -16,9 +16,34 @@ KNOWN_BAD_TRANSCRIPTS = frozenset(
     }
 )
 
+# Faster Whisper sometimes emits letter-spaced Thai ("ส ว ั ส ด ี").
+_THAI_CHAR_RE = re.compile(r"[\u0e00-\u0e7f]")
+_THAI_INTERNAL_SPACE_RE = re.compile(r"(?<=[\u0e00-\u0e7f])\s+(?=[\u0e00-\u0e7f])")
+
+
+def _looks_letter_spaced_thai(text: str) -> bool:
+    """True when most Thai whitespace tokens are tiny (letter / letter+mark)."""
+    tokens = [tok for tok in text.split() if _THAI_CHAR_RE.search(tok)]
+    if len(tokens) < 3:
+        return False
+    short = sum(1 for tok in tokens if len(tok) <= 2)
+    return (short / len(tokens)) >= 0.6
+
+
+def collapse_thai_letter_spaces(text: str) -> str:
+    """Remove spaces Whisper inserts between adjacent Thai letters.
+
+    Leaves normal Thai word spacing alone (``ใช้ โคเด็ก``) and keeps spaces
+    next to Latin/digits so ``สวัสดี Codex`` stays readable.
+    """
+    raw = text or ""
+    if not _looks_letter_spaced_thai(raw):
+        return raw
+    return _THAI_INTERNAL_SPACE_RE.sub("", raw)
+
 
 def apply_replacements(text: str, replacements: list[Replacement]) -> str:
-    normalized = (text or "").strip()
+    normalized = collapse_thai_letter_spaces((text or "").strip())
     for item in replacements:
         normalized = re.sub(item.pattern, item.replace, normalized, flags=re.IGNORECASE)
     return re.sub(r"\s{2,}", " ", normalized).strip()

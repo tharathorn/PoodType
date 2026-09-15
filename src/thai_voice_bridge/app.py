@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from thai_voice_bridge.audio import Recorder, unique_temp_wav, write_wav
+from thai_voice_bridge.audio import Recorder, require_sounddevice, unique_temp_wav, write_wav
 from thai_voice_bridge.config import AppConfig, ConfigError
 from thai_voice_bridge.dictionary import is_bad_transcript, normalize_transcript
 from thai_voice_bridge.feedback import Feedback
@@ -17,6 +17,11 @@ from thai_voice_bridge.hotkey import HotkeyController
 from thai_voice_bridge.paste import PasteError, paste_text
 from thai_voice_bridge.phrases import strip_command_phrases
 from thai_voice_bridge.privacy import log_transcript, setup_logging, summarize_event
+from thai_voice_bridge.script_sanity import (
+    ScriptSanityError,
+    check_thai_mode_script,
+    show_script_sanity_retry_prompt,
+)
 from thai_voice_bridge.wake_listener import WakeWordListener
 from thai_voice_bridge.whisper_engine import WhisperEngine
 
@@ -65,9 +70,19 @@ class VoiceBridgeApp:
         """Start the listener for the configured mode (hotkey or wake_word)."""
         self._shutdown.clear()
         if self.config.mode == "wake_word":
-            if self._hotkey:
-                self._hotkey.disable()
-            self._start_wake_listener()
+            # Probe PortAudio before disabling hotkey so a failed switch
+            # cannot leave the app with no input listener.
+            require_sounddevice()
+            prior_hotkey = self._hotkey
+            if prior_hotkey:
+                prior_hotkey.disable()
+            try:
+                self._start_wake_listener()
+            except Exception:
+                self._stop_wake_listener()
+                if prior_hotkey is not None:
+                    prior_hotkey.enable()
+                raise
         else:
             self._stop_wake_listener()
             if self._hotkey is None:
@@ -92,6 +107,10 @@ class VoiceBridgeApp:
         if normalized not in {"hotkey", "wake_word"}:
             raise ConfigError("mode must be 'hotkey' or 'wake_word'")
 
+        # Fail closed before tearing down the prior mode when wake needs audio.
+        if normalized == "wake_word":
+            require_sounddevice()
+
         if self._hotkey:
             self._hotkey.disable()
         self._stop_wake_listener()
@@ -100,8 +119,21 @@ class VoiceBridgeApp:
         with self._status_lock:
             self._work_generation += 1
 
+        previous_mode = self.config.mode
         self.config.mode = normalized
-        self.start_input()
+        try:
+            self.start_input()
+        except Exception:
+            self.config.mode = previous_mode
+            self._stop_wake_listener()
+            if previous_mode == "hotkey" and self._hotkey is not None:
+                self._hotkey.enable()
+            elif previous_mode == "wake_word":
+                try:
+                    self._start_wake_listener()
+                except Exception:  # noqa: BLE001
+                    self.logger.exception("wake_mode_rollback_failed")
+            raise
 
     def start_hotkey(self) -> None:
         self._hotkey = HotkeyController(
@@ -315,6 +347,23 @@ class VoiceBridgeApp:
         except OSError as exc:
             self.logger.warning("temp_wav_cleanup_failed: %s", exc)
 
+    def _script_sanity_ok(self, text: str) -> bool:
+        """Return False after fail-closed script rejection (prompt + error feedback)."""
+        try:
+            check_thai_mode_script(
+                text,
+                allowed_punctuation=self.config.allowed_punctuation,
+            )
+        except ScriptSanityError as exc:
+            self.logger.info(
+                "script_sanity_rejected scripts=%s",
+                ",".join(exc.scripts) or "unknown",
+            )
+            show_script_sanity_retry_prompt(exc.retry_prompt)
+            self.feedback.error()
+            return False
+        return True
+
     def _transcribe_and_paste(
         self,
         expected_foreground: ForegroundInfo | None = None,
@@ -347,9 +396,14 @@ class VoiceBridgeApp:
                     self.logger.info("work_cancelled_before_paste")
                     return
 
+            raw_text = result.text or ""
+            # Fail closed on unexpected scripts before any rewrite can hide them.
+            if not self._script_sanity_ok(raw_text):
+                return
+
             foreground = get_foreground_info()
             text = normalize_transcript(
-                result.text, self.config, foreground=foreground
+                raw_text, self.config, foreground=foreground
             )
             if strip_wake_phrases:
                 text = strip_command_phrases(
@@ -362,6 +416,10 @@ class VoiceBridgeApp:
             if is_bad_transcript(text, initial_prompt=self.config.initial_prompt):
                 self.logger.info("empty_or_bad_transcript")
                 self.feedback.error()
+                return
+
+            # Re-check after dictionary / phrase normalization.
+            if not self._script_sanity_ok(text):
                 return
 
             if result.avg_confidence < self.config.min_confidence:
@@ -403,7 +461,19 @@ class VoiceBridgeApp:
                 ):
                     self.logger.info("work_cancelled_before_paste")
                     return
-                paste_text(text, auto_send=send)
+                paste_text(
+                    text,
+                    auto_send=send,
+                    hold_seconds=self.config.paste_hold_seconds,
+                    process_name=(
+                        expected_foreground.process_name
+                        if expected_foreground
+                        else None
+                    ),
+                    expected_hwnd=(
+                        expected_foreground.hwnd if expected_foreground else None
+                    ),
+                )
             self.feedback.success()
         except PasteError as exc:
             self.logger.error("paste_refused: %s", exc)
