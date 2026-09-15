@@ -19,10 +19,11 @@
   - `เทพุทธ`
 - เคยถอดถูก `เฮ้ พุดไทป์` ได้บ้าง แต่ไม่เสถียร
 - เสียงรบกวนเบา (~RMS 0.003) เคยท่วมคิว ASR จนวลีจริงไม่ทันถูกถอด → ยก `speech_rms` เป็น `0.01` แล้ว
-- Alias matching เพิ่มใน `phrases.py` แล้ว (รับ `โอเค พูดท้าย` / `ภูทัย` / …) แต่ **owner ยังไม่ยืนยันว่าไอคอนแดง/บีบตอน wake ใช้ได้**
+- Alias matching เพิ่มใน `phrases.py` แล้ว (รับ `โอเค พูดท้าย` / `ภูทัย` / `เทพุทธ`) แต่ **owner ยังไม่ยืนยันว่าไอคอนแดง/บีบตอน wake ใช้ได้**
+- 2026-09-05: เสริม `_WAKE_MISHEARING_ALIASES` + กัน false-positive เมื่อมี `ส่งได้` ร่วม brand mishearing; ขยาย `tests/test_phrases.py`
 
 งานต่อที่แนะนำ (ลำดับ):
-1. Owner smoke โหมด Wake word อีกครั้งหลัง alias fix (`73cce98` / `4494829`)
+1. Owner smoke โหมด Wake word อีกครั้งหลัง alias / collision fix
    - Tray → Mode: Wake word → พูดชัด 「เฮ้ พุดไทป์」 → ต้องแดง+บีบ
 2. ถ้ายังเพี้ยน: เก็บ `wake_listen_window text=...` จาก `%LOCALAPPDATA%\PoodType\poodtype.log` แล้วเติม alias
 3. พิจารณาเปลี่ยนวลีปลุกเป็นคำที่ Whisper คุ้นกว่า (ถ้า alias ไม่พอ) — ต้องคุยเจ้าของก่อน
@@ -33,8 +34,9 @@ Commits ที่เกี่ยว wake (ยังไม่ release):
 - `4494829` Whisper mishearing aliases
 - `73cce98` กัน end phrase fuzzy เป็น start
 - `f8ac3bf` F8 toggle (แยกจาก wake)
+- (pending) phonetic alias collision guard + phrase unit tests
 
-Automated: `pytest -q` **67 passed**
+Automated: `pytest -q` **74 passed**; `compileall -q src` **OK** (2026-09-05 phonetic alias task)
 
 ## Wake-word mode — 2026-07-26 (awaiting owner smoke)
 
